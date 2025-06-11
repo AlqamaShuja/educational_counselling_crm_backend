@@ -1,0 +1,900 @@
+const express = require('express');
+const router = express.Router();
+const consultantController = require('../controllers/consultantController');
+const { protect, restrictTo } = require('../middleware/authMiddleware');
+const { upload } = require('../middleware/multer');
+
+// Protect all routes and restrict to consultant role
+router.use(protect, restrictTo('consultant'));
+
+/**
+ * @swagger
+ * /api/v1/consultant/leads:
+ *   get:
+ *     summary: Get assigned leads with student profiles
+ *     tags: [Consultant]
+ *     description: Retrieves all leads assigned to the consultant, including student and profile info.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of leads
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                     format: uuid
+ *                   studentId:
+ *                     type: string
+ *                   officeId:
+ *                     type: string
+ *                   assignedConsultant:
+ *                     type: string
+ *                   status:
+ *                     type: string
+ *                     enum: [new, in_progress, converted, lost]
+ *                   source:
+ *                     type: string
+ *                     enum: [walk_in, online, referral]
+ *                   studyPreferences:
+ *                     type: object
+ *                   languagePreference:
+ *                     type: string
+ *                   history:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       properties:
+ *                         note:
+ *                           type: string
+ *                         timestamp:
+ *                           type: string
+ *                         userId:
+ *                           type: string
+ *                   student:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       email:
+ *                         type: string
+ *                       phone:
+ *                         type: string
+ *                       profile:
+ *                         type: object
+ *                         properties:
+ *                           personalInfo:
+ *                             type: object
+ *                           educationalBackground:
+ *                             type: object
+ *                           studyPreferences:
+ *                             type: object
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/leads', consultantController.getAssignedLeads);
+
+/**
+ * @swagger
+ * /api/v1/consultant/leads/{id}/status:
+ *   put:
+ *     summary: Update lead status
+ *     tags: [Consultant]
+ *     description: Updates the status of a lead assigned to the consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Lead ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [new, in_progress, converted, lost]
+ *                 example: in_progress
+ *     responses:
+ *       200:
+ *         description: Lead status updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Lead'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Lead not found or not assigned to consultant
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Lead not found
+ */
+router.put('/leads/:id/status', consultantController.updateLeadStatus);
+
+/**
+ * @swagger
+ * /api/v1/consultant/leads/{id}/notes:
+ *   post:
+ *     summary: Add consultation notes to a lead
+ *     tags: [Consultant]
+ *     description: Adds a note to the history of a lead assigned to the consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Lead ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - note
+ *             properties:
+ *               note:
+ *                 type: string
+ *                 example: Discussed study preferences with student.
+ *     responses:
+ *       200:
+ *         description: Note added successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Lead'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Lead not found
+ */
+router.post('/leads/:id/notes', consultantController.addConsultationNotes);
+
+/**
+ * @swagger
+ * /api/v1/consultant/leads/{id}/documents:
+ *   post:
+ *     summary: Upload documents for a lead
+ *     tags: [Consultant]
+ *     description: Uploads one or more documents for a lead's student (e.g. passport, transcript).
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Lead ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *               type:
+ *                 type: string
+ *                 enum: [passport, cnic, transcript, test_score, degree, experience_letter, bank_statement, photo, other]
+ *                 example: passport
+ *     responses:
+ *       200:
+ *         description: Document(s) uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Document'
+ *       400:
+ *         description: Missing file(s) or invalid input
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: File(s) required
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Lead not found
+ */
+
+router.post(
+  '/leads/:id/documents',
+  upload.array('files', 10),
+  consultantController.uploadLeadDocument
+);
+
+/**
+ * @swagger
+ * /api/v1/consultant/leads/{id}/tasks:
+ *   post:
+ *     summary: Set follow-up task for a lead
+ *     tags: [Consultant]
+ *     description: Creates a follow-up task for a lead assigned to the consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Lead ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               description:
+ *                 type: string
+ *                 example: Follow up on application documents
+ *               dueDate:
+ *                 type: string
+ *                 format: date-time
+ *                 example: 2025-06-15T10:00:00Z
+ *     responses:
+ *       200:
+ *         description: Task set successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Task set
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Lead not found
+ */
+router.post('/leads/:id/tasks', consultantController.setFollowUpTask);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/profile:
+ *   get:
+ *     summary: Get student profile
+ *     tags: [Consultant]
+ *     description: Retrieves the profile of a student associated with a lead assigned to the consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     responses:
+ *       200:
+ *         description: Student profile retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/StudentProfile'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found or not assigned
+ */
+router.get('/students/:id/profile', consultantController.getStudentProfile);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/review:
+ *   post:
+ *     summary: Request profile information
+ *     tags: [Consultant]
+ *     description: Requests additional information for a student's profile.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Please provide your latest transcript.
+ *     responses:
+ *       200:
+ *         description: Info requested successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Info requested
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.post('/students/:id/review', consultantController.requestProfileInfo);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/notifications:
+ *   post:
+ *     summary: Send review notification
+ *     tags: [Consultant]
+ *     description: Sends a notification to a student regarding their profile review.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Your profile review is complete.
+ *     responses:
+ *       200:
+ *         description: Notification sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Notification sent
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.post(
+  '/students/:id/notifications',
+  consultantController.sendReviewNotification
+);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/messages:
+ *   post:
+ *     summary: Send message to student
+ *     tags: [Consultant]
+ *     description: Sends a message to a student associated with a lead.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Let's schedule a meeting to discuss your application.
+ *     responses:
+ *       200:
+ *         description: Message sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Message sent
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.post('/students/:id/messages', consultantController.sendMessage);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/meetings:
+ *   post:
+ *     summary: Schedule meeting with student
+ *     tags: [Consultant]
+ *     description: Schedules a meeting with a student.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               dateTime:
+ *                 type: string
+ *                 format: date-time
+ *                 example: 2025-06-10T14:00:00Z
+ *               type:
+ *                 type: string
+ *                 enum: [in_person, virtual]
+ *                 example: virtual
+ *     responses:
+ *       200:
+ *         description: Meeting scheduled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Appointment'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.post('/students/:id/meetings', consultantController.scheduleMeeting);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/resources:
+ *   post:
+ *     summary: Share resources with student
+ *     tags: [Consultant]
+ *     description: Shares resources (e.g., documents, links) with a student.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               resources:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: [https://example.com/guide, /docs/template.pdf]
+ *     responses:
+ *       200:
+ *         description: Resources shared successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Resources shared
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.post('/students/:id/resources', consultantController.shareResources);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/communication:
+ *   get:
+ *     summary: Get communication history
+ *     tags: [Consultant]
+ *     description: Retrieves the communication history with a student.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     responses:
+ *       200:
+ *         description: Communication history retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   type:
+ *                     type: string
+ *                     enum: [message, notification, meeting]
+ *                   content:
+ *                     type: string
+ *                   timestamp:
+ *                     type: string
+ *                     format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.get(
+  '/students/:id/communication',
+  consultantController.getCommunicationHistory
+);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/checklist:
+ *   post:
+ *     summary: Create application checklist
+ *     tags: [Consultant]
+ *     description: Creates an application checklist for a student.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     task:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                       enum: [pending, completed]
+ *                 example:
+ *                   - task: Submit transcript
+ *                     status: pending
+ *                   - task: Pay application fee
+ *                     status: pending
+ *     responses:
+ *       200:
+ *         description: Checklist created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 items:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       task:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.post(
+  '/students/:id/checklist',
+  consultantController.createApplicationChecklist
+);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/documents:
+ *   put:
+ *     summary: Track document submission
+ *     tags: [Consultant]
+ *     description: Tracks the submission of a document for a student's application.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *               type:
+ *                 type: string
+ *                 enum: [passport, cnic, transcript, test_score, degree, experience_letter, bank_statement, photo, other]
+ *                 example: transcript
+ *     responses:
+ *       200:
+ *         description: Document tracked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Document'
+ *       400:
+ *         description: Missing file or invalid type
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.put(
+  '/students/:id/documents',
+  consultantController.trackDocumentSubmission
+);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/reminders:
+ *   post:
+ *     summary: Set deadline reminder
+ *     tags: [Consultant]
+ *     description: Sets a reminder for an application deadline for a student.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               deadline:
+ *                 type: string
+ *                 format: date-time
+ *                 example: 2025-06-20T23:59:59Z
+ *               message:
+ *                 type: string
+ *                 example: Reminder: Submit application by June 20.
+ *     responses:
+ *       200:
+ *         description: Reminder set successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Reminder set
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.post(
+  '/students/:id/reminders',
+  consultantController.setDeadlineReminder
+);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/application-status:
+ *   put:
+ *     summary: Update application status
+ *     tags: [Consultant]
+ *     description: Updates the status of a student's application.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 example: submitted
+ *     responses:
+ *       200:
+ *         description: Application status updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Status updated
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.put(
+  '/students/:id/application-status',
+  consultantController.updateApplicationStatus
+);
+
+/**
+ * @swagger
+ * /api/v1/consultant/students/{id}/progress:
+ *   get:
+ *     summary: Get application progress
+ *     tags: [Consultant]
+ *     description: Retrieves the progress of a student's application.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     responses:
+ *       200:
+ *         description: Application progress retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 checklist:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       task:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *                 applicationStatus:
+ *                   type: string
+ *                 deadlines:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                     format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student not found
+ */
+router.get(
+  '/students/:id/progress',
+  consultantController.getApplicationProgress
+);
+
+module.exports = router;
