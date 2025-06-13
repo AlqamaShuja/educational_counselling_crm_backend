@@ -44,6 +44,11 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 'none',
         comment: 'Relationship of university with us',
       },
+      details: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: {},
+      },
     },
     {
       sequelize,

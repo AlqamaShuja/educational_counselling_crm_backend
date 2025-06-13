@@ -32,6 +32,11 @@ module.exports = {
         defaultValue: 'none',
         comment: 'Relationship of university with us',
       },
+      details: {
+        type: Sequelize.JSON,
+        allowNull: true,
+        defaultValue: {},
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,

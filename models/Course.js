@@ -49,12 +49,17 @@ module.exports = (sequelize, DataTypes) => {
       },
       universityId: {
         type: DataTypes.UUID,
-        allowNull: false,
+        allowNull: true,
         references: {
           model: 'Universities',
           key: 'id',
         },
-        onDelete: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
+      details: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: {},
       },
     },
     {

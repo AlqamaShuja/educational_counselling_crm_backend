@@ -44,8 +44,13 @@ module.exports = {
           model: 'Universities',
           key: 'id',
         },
-        onDelete: 'CASCADE',
+        onDelete: 'SET NULL',
         onUpdate: 'CASCADE',
+      },
+      details: {
+        type: Sequelize.JSON,
+        allowNull: true,
+        defaultValue: {},
       },
       createdAt: {
         allowNull: false,
