@@ -45,7 +45,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       officeId: {
         type: DataTypes.UUID,
-        allowNull: false,
+        allowNull: true,
         references: {
           model: 'Offices',
           key: 'id',
@@ -64,7 +64,7 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 'new',
       },
       source: {
-        type: DataTypes.ENUM('walk_in', 'online', 'referral'),
+        type: DataTypes.ENUM('walk_in', 'online', 'referral', 'Google OAuth', 'Facebook OAuth'),
         allowNull: false,
       },
       studyPreferences: {

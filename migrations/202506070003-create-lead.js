@@ -17,7 +17,7 @@ module.exports = {
       },
       officeId: {
         type: Sequelize.UUID,
-        allowNull: false,
+        allowNull: true,
         references: { model: 'Offices', key: 'id' },
         onDelete: 'SET NULL',
         onUpdate: 'CASCADE',

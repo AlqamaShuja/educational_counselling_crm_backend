@@ -440,6 +440,58 @@ const options = {
             },
           },
         },
+        StudentProfileInput: {
+          type: 'object',
+          required: ['personalInfo', 'educationalBackground', 'studyPreferences'],
+          properties: {
+            personalInfo: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', example: 'John Doe' },
+                email: { type: 'string', format: 'email', example: 'john.doe@example.com' },
+                phone: { type: 'string', example: '+1234567890' },
+                dob: { type: 'string', format: 'date', example: '2000-01-01' },
+                gender: { type: 'string', example: 'Male' },
+                nationality: { type: 'string', example: 'USA' },
+              },
+            },
+            educationalBackground: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  institution: { type: 'string', example: 'XYZ School' },
+                  degree: { type: 'string', example: 'High School Diploma' },
+                  year: { type: 'number', example: 2018 },
+                },
+              },
+            },
+            studyPreferences: {
+              type: 'object',
+              properties: {
+                destination: { type: 'string', example: 'Canada' },
+                level: { type: 'string', example: 'Undergraduate' },
+                fields: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  example: ['Computer Science'],
+                },
+              },
+            },
+            testScores: {
+              type: 'object',
+            },
+            workExperience: {
+              type: 'object',
+            },
+            financialInfo: {
+              type: 'object',
+            },
+            additionalInfo: {
+              type: 'object',
+            },
+          },
+        },
       },
     },
     security: [

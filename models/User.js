@@ -64,6 +64,7 @@ module.exports = (sequelize, DataTypes) => {
       officeId: DataTypes.UUID,
       name: DataTypes.STRING,
       phone: DataTypes.STRING,
+      signupLocation: DataTypes.STRING,
       isActive: DataTypes.BOOLEAN,
       notificationPreferences: {
         type: DataTypes.JSONB,

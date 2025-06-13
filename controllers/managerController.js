@@ -1,9 +1,7 @@
-const { Lead, User, Appointment, OfficeConsultant } = require('../models');
+const { Lead, User, Appointment, OfficeConsultant, StudentProfile } = require('../models');
 const reportService = require('../services/reportService');
 const leadService = require('../services/leadService');
-const { v4: uuidv4 } = require('uuid');
 const { sendNotification } = require('../services/notificationService');
-const { where } = require('sequelize');
 
 const createLead = async (req, res, next) => {
   try {
@@ -23,7 +21,7 @@ const createLead = async (req, res, next) => {
     if (!req.user.officeId) {
       return res.status(400).json({
         error:
-          'Manager is not assign to any Office, Please contact ADMIN to Assign',
+          'You are not assign to any Office, Please contact ADMIN',
       });
     }
 
@@ -63,7 +61,6 @@ const createLead = async (req, res, next) => {
 
     // Create lead
     const lead = await Lead.create({
-      id: uuidv4(),
       studentId: student.id,
       officeId: req.user.officeId,
       source,
@@ -76,6 +73,13 @@ const createLead = async (req, res, next) => {
           managerId: req.user.id,
         },
       ],
+    });
+
+    let stdProfile = await StudentProfile.create({
+      userId: student.id,
+      personalInfo: {},
+      educationalBackground: {},
+      studyPreferences: {},
     });
 
     // Send notification if consultant is assigned

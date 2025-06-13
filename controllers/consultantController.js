@@ -3,6 +3,7 @@ const {
   StudentProfile,
   Appointment,
   Document,
+  OfficeConsultant,
   User,
 } = require('../models');
 const leadService = require('../services/leadService');
@@ -92,35 +93,31 @@ const uploadLeadDocument = async (req, res, next) => {
   try {
     const { id } = req.params;
     const files = req.files;
-    const { type } = req.body;
+    let { types, notes } = req.body;
 
     if (!files || files.length === 0) {
-      throw new Error('File(s) required');
+      throw new AppError('File(s) required', 400);
+    }
+
+    if (!Array.isArray(types)) {
+      types = types.split(',');
+    }
+    if (!Array.isArray(notes)) {
+      notes = notes.split(',');
     }
 
     const lead = await Lead.findByPk(id);
     if (!lead || lead.assignedConsultant !== req.user.id) {
-      throw new Error('Lead not found');
+      throw new AppError('Lead not found or not assigned to you', 404);
     }
 
-    const documents = await Promise.all(
-      files.map((file) =>
-        Document.create({
-          userId: lead.studentId,
-          type,
-          filePath: file.path,
-        })
-      )
+    const documents = await notificationService.uploadLeadDocuments(
+      id,
+      lead.studentId,
+      files,
+      types,
+      notes
     );
-
-    await notificationService.sendNotification({
-      userId: lead.studentId,
-      type: 'in_app',
-      message: `New document(s) uploaded: ${type}`,
-      details: {
-        leadId: lead.id,
-      },
-    });
 
     res.json(documents);
   } catch (error) {
@@ -160,7 +157,15 @@ const getStudentProfile = async (req, res, next) => {
       where: { studentId: id, assignedConsultant: req.user.id },
     });
     if (!lead) throw new Error('Student not found');
-    const profile = await StudentProfile.findByPk(id);
+    let profile = await StudentProfile.findByPk(lead.studentId);
+    if (!profile) {
+      profile = await StudentProfile.create({
+        userId: id,
+        personalInfo: {},
+        educationalBackground: {},
+        studyPreferences: {},
+      });
+    }
     res.json(profile);
   } catch (error) {
     next(error);
@@ -202,7 +207,12 @@ const sendMessage = async (req, res, next) => {
       where: { studentId: id, assignedConsultant: req.user.id },
     });
     if (!lead) throw new Error('Student not found');
-    await notificationService.sendMessage(id, req.body.message);
+    await notificationService.sendMessage({
+      studentId: id,
+      message: req.body.message,
+      senderId: req.user.id,
+      type: 'text',
+    });
     res.json({ message: 'Message sent' });
   } catch (error) {
     next(error);
@@ -212,17 +222,44 @@ const sendMessage = async (req, res, next) => {
 const scheduleMeeting = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // Validate that the lead is assigned to this consultant
     const lead = await Lead.findOne({
-      where: { studentId: id, assignedConsultant: req.user.id },
+      where: {
+        studentId: id,
+        assignedConsultant: req.user.id,
+      },
     });
+
     if (!lead) throw new AppError('Student not found', 404);
+
+    // Step 1: Determine officeId
+    let officeId = req.user.officeId;
+
+    if (!officeId) {
+      // If not present on the user object, look it up from OfficeConsultant
+      const officeConsultant = await OfficeConsultant.findOne({
+        where: { userId: req.user.id },
+      });
+
+      if (!officeConsultant) {
+        throw new AppError('Consultant is not associated with any office', 400);
+      }
+
+      officeId = officeConsultant.officeId;
+    }
+
+    // Step 2: Create Appointment
     const appointment = await Appointment.create({
       studentId: id,
       consultantId: req.user.id,
-      officeId: req.user.officeId,
+      officeId: officeId,
       ...req.body,
     });
+
+    // Step 3: Send notification
     await notificationService.sendAppointmentConfirmation(id, appointment.id);
+
     res.json(appointment);
   } catch (error) {
     next(error);
@@ -235,7 +272,7 @@ const shareResources = async (req, res, next) => {
     const lead = await Lead.findOne({
       where: { studentId: id, assignedConsultant: req.user.id },
     });
-    if (!lead) throw new Error('Student not found');
+    if (!lead) throw new AppError('Student not found', 404);
     await notificationService.shareResources(id, req.body.resources);
     res.json({ message: 'Resources shared' });
   } catch (error) {
@@ -250,8 +287,25 @@ const getCommunicationHistory = async (req, res, next) => {
       where: { studentId: id, assignedConsultant: req.user.id },
     });
     if (!lead) throw new Error('Student not found');
-    const history = await notificationService.getCommunicationHistory(id);
+    const history = await notificationService.getCommunicationHistory(
+      id,
+      req.user.id
+    );
     res.json(history);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const markMessagesAsRead = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const lead = await Lead.findOne({
+      where: { studentId: id, assignedConsultant: req.user.id },
+    });
+    if (!lead) throw new AppError('Student not found', 404);
+    await notificationService.markMessagesAsRead(id, req.user.id);
+    res.json({ message: 'Messages marked as read' });
   } catch (error) {
     next(error);
   }
@@ -259,16 +313,35 @@ const getCommunicationHistory = async (req, res, next) => {
 
 const createApplicationChecklist = async (req, res, next) => {
   try {
-    const { id } = require('uuid');
+    const { id } = req.params; // id = studentId
     const lead = await Lead.findOne({
       where: { studentId: id, assignedConsultant: req.user.id },
     });
+
     if (!lead) throw new Error('Student not found');
-    const profile = await StudentProfile.findByPk(id);
+
+    // Check if profile exists, create if not
+    let profile = await StudentProfile.findOne({ where: { userId: id } });
+
+    if (!profile) {
+      // You can choose to pass in some sensible defaults or fetch them elsewhere
+      profile = await StudentProfile.create({
+        userId: id,
+        personalInfo: {},
+        educationalBackground: {},
+        studyPreferences: {},
+      });
+    }
+
+    // Update profile with checklist
     const checklist = { ...req.body, updatedAt: new Date() };
     await profile.update({
-      additionalInfo: { ...profile.additionalInfo, checklist },
+      additionalInfo: {
+        ...(profile.additionalInfo || {}),
+        checklist,
+      },
     });
+
     res.json(checklist);
   } catch (error) {
     next(error);
@@ -278,27 +351,37 @@ const createApplicationChecklist = async (req, res, next) => {
 const trackDocumentSubmission = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const file = req.file;
-    if (!file) throw new Error('File required');
+    const files = req.files;
+    let { types, notes } = req.body;
+
+    // console.log(types, ' sacnasncjascn, ', notes);
+
+    if (!files || files.length === 0) {
+      throw new AppError('At least one file is required', 400);
+    }
+
+    if (!Array.isArray(types)) {
+      types = types.split(',');
+    }
+    if (!Array.isArray(notes)) {
+      notes = notes.split(',');
+    }
+
     const lead = await Lead.findOne({
       where: { studentId: id, assignedConsultant: req.user.id },
     });
-    if (!lead) throw new Error('Student not found');
-    const document = await Document.create({
-      userId: id,
-      type: req.body.type,
-      filePath: file.path,
-    });
+    if (!lead) {
+      throw new AppError('Student not found', 404);
+    }
 
-    await notificationService.sendNotification({
-      userId: id,
-      type: 'in_app',
-      message: `Your document "${req.body.type}" has been submitted successfully.`,
-      details: {
-        leadId: lead.id,
-      },
-    });
-    res.json(document);
+    const documents = await notificationService.trackDocumentSubmission(
+      id,
+      files,
+      types,
+      notes
+    );
+
+    res.json(documents);
   } catch (error) {
     next(error);
   }
@@ -310,7 +393,7 @@ const setDeadlineReminder = async (req, res, next) => {
     const lead = await Lead.findOne({
       where: { studentId: id, assignedConsultant: req.user.id },
     });
-    if (!lead) throw new Error('Student not found');
+    if (!lead) throw new AppError('Student not found', 404);
     await notificationService.setDeadlineReminder(id, req.body);
     res.json({ message: 'Reminder set' });
   } catch (error) {
@@ -326,7 +409,16 @@ const updateApplicationStatus = async (req, res, next) => {
       where: { studentId: id, assignedConsultant: req.user.id },
     });
     if (!lead) throw new Error('Student not found');
-    const profile = await StudentProfile.findByPk(id);
+    let profile = await StudentProfile.findOne({ where: { userId: id } });
+    if (!profile) {
+      // You can choose to pass in some sensible defaults or fetch them elsewhere
+      profile = await StudentProfile.create({
+        userId: id,
+        personalInfo: {},
+        educationalBackground: {},
+        studyPreferences: {},
+      });
+    }
     await profile.update({
       additionalInfo: { ...profile.additionalInfo, applicationStatus: status },
     });
@@ -353,7 +445,7 @@ const getApplicationProgress = async (req, res, next) => {
       where: { studentId: id, assignedConsultant: req.user.id },
     });
     if (!lead) throw new Error('Student not found');
-    const profile = await StudentProfile.findByPk(id);
+    const profile = await StudentProfile.findOne({ where: { userId: id, } });
     res.json(profile.additionalInfo);
   } catch (error) {
     next(error);
@@ -373,6 +465,7 @@ module.exports = {
   scheduleMeeting,
   shareResources,
   getCommunicationHistory,
+  markMessagesAsRead,
   createApplicationChecklist,
   trackDocumentSubmission,
   setDeadlineReminder,

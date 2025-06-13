@@ -188,7 +188,7 @@ router.post('/leads/:id/notes', consultantController.addConsultationNotes);
  *   post:
  *     summary: Upload documents for a lead
  *     tags: [Consultant]
- *     description: Uploads one or more documents for a lead's student (e.g. passport, transcript).
+ *     description: Uploads one or more documents for a lead's student (e.g., passport, transcript) with individual types and notes.
  *     security:
  *       - BearerAuth: []
  *     parameters:
@@ -211,10 +211,15 @@ router.post('/leads/:id/notes', consultantController.addConsultationNotes);
  *                 items:
  *                   type: string
  *                   format: binary
- *               type:
+ *                 description: Array of files to upload
+ *               types:
  *                 type: string
- *                 enum: [passport, cnic, transcript, test_score, degree, experience_letter, bank_statement, photo, other]
- *                 example: passport
+ *                 description: JSON array of document types
+ *                 example: '["passport", "transcript"]'
+ *               notes:
+ *                 type: string
+ *                 description: JSON array of notes for each document (optional)
+ *                 example: '["Valid passport copy", "Academic transcript"]'
  *     responses:
  *       200:
  *         description: Document(s) uploaded successfully
@@ -225,7 +230,7 @@ router.post('/leads/:id/notes', consultantController.addConsultationNotes);
  *               items:
  *                 $ref: '#/components/schemas/Document'
  *       400:
- *         description: Missing file(s) or invalid input
+ *         description: Missing file(s), invalid types, or mismatched arrays
  *         content:
  *           application/json:
  *             schema:
@@ -233,7 +238,7 @@ router.post('/leads/:id/notes', consultantController.addConsultationNotes);
  *               properties:
  *                 error:
  *                   type: string
- *                   example: File(s) required
+ *                   example: File(s), types, and notes arrays must have equal length
  *       401:
  *         description: Unauthorized
  *       403:
@@ -241,7 +246,6 @@ router.post('/leads/:id/notes', consultantController.addConsultationNotes);
  *       404:
  *         description: Lead not found
  */
-
 router.post(
   '/leads/:id/documents',
   upload.array('files', 10),
@@ -622,6 +626,48 @@ router.get(
 
 /**
  * @swagger
+ * /api/v1/consultant/students/{id}/messages/read:
+ *   patch:
+ *     summary: Mark messages as read
+ *     tags: [Consultant]
+ *     description: Marks all messages from a student to the authenticated counselor as read.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Student ID
+ *     responses:
+ *       200:
+ *         description: Messages marked as read successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Messages marked as read
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Student or counselor not found
+ */
+router.patch(
+  '/students/:id/messages/read',
+  consultantController.markMessagesAsRead
+);
+
+/**
+ * @swagger
  * /api/v1/consultant/students/{id}/checklist:
  *   post:
  *     summary: Create application checklist
@@ -692,9 +738,9 @@ router.post(
  * @swagger
  * /api/v1/consultant/students/{id}/documents:
  *   put:
- *     summary: Track document submission
+ *     summary: Track document submissions
  *     tags: [Consultant]
- *     description: Tracks the submission of a document for a student's application.
+ *     description: Tracks the submission of multiple documents for a student's application.
  *     security:
  *       - BearerAuth: []
  *     parameters:
@@ -712,22 +758,31 @@ router.post(
  *           schema:
  *             type: object
  *             properties:
- *               file:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Array of files to upload
+ *               types:
  *                 type: string
- *                 format: binary
- *               type:
+ *                 description: JSON array of document types
+ *                 example: '["transcript", "passport"]'
+ *               notes:
  *                 type: string
- *                 enum: [passport, cnic, transcript, test_score, degree, experience_letter, bank_statement, photo, other]
- *                 example: transcript
+ *                 description: JSON array of notes for each document
+ *                 example: '["Academic transcript", "Valid passport copy"]'
  *     responses:
  *       200:
- *         description: Document tracked successfully
+ *         description: Documents tracked successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Document'
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Document'
  *       400:
- *         description: Missing file or invalid type
+ *         description: Missing files, invalid types, or mismatched arrays
  *       401:
  *         description: Unauthorized
  *       403:
@@ -737,6 +792,7 @@ router.post(
  */
 router.put(
   '/students/:id/documents',
+  upload.array('files', 10), // Allow up to 10 files
   consultantController.trackDocumentSubmission
 );
 
@@ -763,14 +819,17 @@ router.put(
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - deadline
+ *               - message
  *             properties:
  *               deadline:
  *                 type: string
  *                 format: date-time
- *                 example: 2025-06-20T23:59:59Z
+ *                 example: "2025-06-20T23:59:59Z"
  *               message:
  *                 type: string
- *                 example: Reminder: Submit application by June 20.
+ *                 example: "Reminder: Submit application by June 20."
  *     responses:
  *       200:
  *         description: Reminder set successfully
@@ -789,6 +848,7 @@ router.put(
  *       404:
  *         description: Student not found
  */
+
 router.post(
   '/students/:id/reminders',
   consultantController.setDeadlineReminder

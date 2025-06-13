@@ -46,6 +46,11 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: true,
       },
+      signupLocation: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        defaultValue: 'in-app',
+      },
       isActive: {
         type: Sequelize.BOOLEAN,
         defaultValue: true,

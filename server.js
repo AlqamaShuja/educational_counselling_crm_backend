@@ -6,11 +6,14 @@ const swaggerUi = require('swagger-ui-express');
 const { sequelize } = require('./models/index');
 const swaggerSpec = require('./swagger/swagger');
 const errorMiddleware = require('./middleware/errorMiddleware');
+const passport = require('passport');
 
 //
 const app = express();
 app.use(express.json());
 app.use(cors({ origin: '*' }));
+
+app.use(passport.initialize());
 
 sequelize
   .authenticate()

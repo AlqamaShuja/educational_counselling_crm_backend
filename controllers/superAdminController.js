@@ -20,13 +20,33 @@ const getAllStudents = async (req, res, next) => {
   try {
     const students = await User.findAll({
       where: { role: 'student' },
-      include: [{ model: StudentProfile, as: 'profile' }],
-      attributes: {
-        exclude: ['password'],
-      },
+      attributes: { exclude: ['password'] },
+      include: [
+        {
+          model: StudentProfile,
+          as: 'profile',
+        },
+        {
+          model: Lead,
+          as: 'studentLeads', // ✅ this matches User.hasMany(Lead, { as: 'studentLeads' })
+          include: [
+            {
+              model: User,
+              as: 'consultant', // ✅ this matches Lead.belongsTo(User, { as: 'consultant' })
+              attributes: ['id', 'name', 'email', 'role'],
+            },
+            {
+              model: Office,
+              attributes: ['id', 'name', 'address'],
+            },
+          ],
+        },
+      ],
     });
+
     res.json(students);
   } catch (error) {
+    console.error('Error fetching students:', error);
     next(error);
   }
 };
@@ -269,7 +289,7 @@ const createStaff = async (req, res, next) => {
     const hashedPassword = await bcrypt.hash(staffData.password, 10);
     const staff = await User.create({ ...staffData, password: hashedPassword });
 
-    await sendNotification({
+    await notificationService.sendNotification({
       userId: staff.id,
       type: 'email',
       message: `Welcome to the CRM system! Your account has been created.`,
@@ -595,6 +615,57 @@ const scheduleReport = async (req, res, next) => {
   }
 };
 
+const assignLeadToConsultant = async (req, res, next) => {
+  try {
+    const { leadId, consultantId, officeId } = req.body;
+
+    // 1. Validate required fields
+    if (!leadId || !consultantId || !officeId) {
+      return res
+        .status(400)
+        .json({ error: 'leadId, consultantId, and officeId are required' });
+    }
+
+    // 2. Verify lead exists
+    const lead = await Lead.findByPk(leadId);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    // 3. Verify consultant exists and is part of that office (OfficeConsultants)
+    const consultantOffice = await OfficeConsultant.findOne({
+      where: { officeId, userId: consultantId },
+    });
+
+    if (!consultantOffice) {
+      return res.status(400).json({
+        error: 'Consultant is not assigned to the selected office',
+      });
+    }
+
+    // 4. Assign the lead
+    await lead.update({ officeId, assignedConsultant: consultantId });
+
+    // 5. Log history
+    await leadService.logLeadHistory(leadId, 'assigned', req.user.id);
+
+    // 6. Notify consultant
+    await notificationService.sendNotification({
+      userId: consultantId,
+      type: 'in_app',
+      message: 'A new lead has been assigned to you.',
+      details: {
+        leadId,
+        assignedBy: req.user.id,
+      },
+    });
+
+    res.json({ message: 'Lead assigned successfully', lead });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAllStudents,
   getAllStaff,
@@ -620,4 +691,5 @@ module.exports = {
   createReport,
   exportReport,
   scheduleReport,
+  assignLeadToConsultant,
 };

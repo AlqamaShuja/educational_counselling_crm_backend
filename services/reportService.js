@@ -4,6 +4,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const AppError = require('../utils/appError');
+const { Readable } = require('stream');
 
 // Ensure reports directory exists
 const reportsDir = path.join(__dirname, '../../reports');
@@ -260,6 +261,137 @@ const getStaffPerformance = async (officeId) => {
   }));
 };
 
+const generateApplicationSummary = async (profile) => {
+  if (!profile) {
+    throw new AppError('Profile data is required', 400);
+  }
+
+  // Create a new PDF document
+  const doc = new PDFDocument({ margin: 50 });
+  const buffers = [];
+
+  // Collect PDF data into buffers
+  doc.on('data', buffers.push.bind(buffers));
+  doc.on('end', () => {});
+
+  // Helper function to add section header
+  const addSectionHeader = (title) => {
+    doc
+      .fontSize(16)
+      .font('Helvetica-Bold')
+      .text(title, { underline: true })
+      .moveDown(0.5);
+  };
+
+  // Helper function to add key-value pair
+  const addKeyValue = (key, value) => {
+    if (value) {
+      doc.fontSize(12).font('Helvetica').text(`${key}: ${value}`).moveDown(0.3);
+    }
+  };
+
+  // Header
+  doc
+    .fontSize(20)
+    .font('Helvetica-Bold')
+    .text('Application Summary', { align: 'center' })
+    .moveDown(1);
+
+  // Personal Info
+  addSectionHeader('Personal Information');
+  addKeyValue('Name', profile.personalInfo?.name);
+  addKeyValue('Email', profile.personalInfo?.email);
+  addKeyValue('Phone', profile.personalInfo?.phone);
+  addKeyValue('Address', profile.personalInfo?.address);
+  doc.moveDown(0.5);
+
+  // Educational Background
+  addSectionHeader('Educational Background');
+  profile.educationalBackground?.forEach((edu, index) => {
+    doc
+      .fontSize(12)
+      .font('Helvetica')
+      .text(`Education ${index + 1}:`)
+      .moveDown(0.3);
+    addKeyValue('Institution', edu.institution);
+    addKeyValue('Degree', edu.degree);
+    addKeyValue('Year', edu.year);
+    addKeyValue('GPA', edu.gpa);
+  });
+  doc.moveDown(0.5);
+
+  // Test Scores
+  addSectionHeader('Test Scores');
+  if (profile.testScores) {
+    Object.entries(profile.testScores).forEach(([test, score]) => {
+      addKeyValue(test.toUpperCase(), score);
+    });
+  } else {
+    doc.text('No test scores provided.');
+  }
+  doc.moveDown(0.5);
+
+  // Study Preferences
+  addSectionHeader('Study Preferences');
+  addKeyValue('Country', profile.studyPreferences?.country?.join(', '));
+  addKeyValue('Program', profile.studyPreferences?.program);
+  addKeyValue('Intake', profile.studyPreferences?.intake);
+  doc.moveDown(0.5);
+
+  // Work Experience
+  addSectionHeader('Work Experience');
+  if (profile.workExperience?.length > 0) {
+    profile.workExperience.forEach((exp, index) => {
+      doc
+        .fontSize(12)
+        .font('Helvetica')
+        .text(`Experience ${index + 1}:`)
+        .moveDown(0.3);
+      addKeyValue('Company', exp.company);
+      addKeyValue('Role', exp.role);
+      addKeyValue('Duration', exp.duration);
+    });
+  } else {
+    doc.text('No work experience provided.');
+  }
+  doc.moveDown(0.5);
+
+  // Financial Info
+  addSectionHeader('Financial Information');
+  addKeyValue('Funding Source', profile.financialInfo?.source);
+  addKeyValue('Budget', profile.financialInfo?.budget);
+  doc.moveDown(0.5);
+
+  // Additional Info
+  addSectionHeader('Additional Information');
+  addKeyValue('Notes', profile.additionalInfo?.notes);
+  doc.moveDown(0.5);
+
+  // Footer
+  doc
+    .fontSize(10)
+    .font('Helvetica')
+    .text(`Generated on ${new Date().toISOString()}`, { align: 'center' });
+
+  // Finalize PDF
+  doc.end();
+
+  // Convert buffers to a single Buffer
+  return new Promise((resolve, reject) => {
+    const stream = new Readable({
+      read() {
+        buffers.forEach((buffer) => this.push(buffer));
+        this.push(null);
+      },
+    });
+
+    const chunks = [];
+    stream.on('data', (chunk) => chunks.push(chunk));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
+};
+
 module.exports = {
   generateReport,
   getReports,
@@ -267,4 +399,5 @@ module.exports = {
   scheduleReport,
   getManagerDashboard,
   getStaffPerformance,
+  generateApplicationSummary,
 };

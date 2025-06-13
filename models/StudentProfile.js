@@ -19,10 +19,6 @@ module.exports = (sequelize, DataTypes) => {
         primaryKey: true,
         defaultValue: DataTypes.UUIDV4,
         allowNull: false,
-        // references: {
-        //   model: 'Users', // table name must be pluralized if using default conventions
-        //   key: 'id',
-        // },
       },
       userId: {
         type: DataTypes.UUID,

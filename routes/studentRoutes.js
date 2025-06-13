@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const studentController = require('../controllers/studentController');
 const { protect, restrictTo } = require('../middleware/authMiddleware');
+const { upload } = require('../middleware/multer');
 
 // Protect all routes and restrict to student role
 router.use(protect, restrictTo('student'));
@@ -20,60 +21,7 @@ router.use(protect, restrictTo('student'));
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - personalInfo
- *               - educationalBackground
- *               - studyPreferences
- *             properties:
- *               personalInfo:
- *                 type: object
- *                 properties:
- *                   name:
- *                     type: string
- *                     example: John Doe
- *                   email:
- *                     type: string
- *                     format: email
- *                     example: john.doe@example.com
- *                   phone:
- *                     type: string
- *                     example: +1234567890
- *                   dob:
- *                     type: string
- *                     format: date
- *                     example: 2000-01-01
- *                   gender:
- *                     type: string
- *                     example: Male
- *                   nationality:
- *                     type: string
- *                     example: USA
- *               educationalBackground:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     institution:
- *                       type: string
- *                     degree:
- *                       type: string
- *                     year:
- *                       type: number
- *               studyPreferences:
- *                 type: object
- *                 properties:
- *                   destination:
- *                     type: string
- *                     example: Canada
- *                   level:
- *                     type: string
- *                     example: Undergraduate
- *                   fields:
- *                     type: array
- *                     items:
- *                       type: string
- *                     example: [Computer Science]
+ *             $ref: '#/components/schemas/StudentProfileInput'
  *     responses:
  *       201:
  *         description: Profile created successfully
@@ -83,36 +31,26 @@ router.use(protect, restrictTo('student'));
  *               $ref: '#/components/schemas/StudentProfile'
  *       400:
  *         description: Invalid input
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: Missing required fields
  *       401:
  *         description: Unauthorized
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: Authentication failed: No token provided
  *       403:
- *         description: Forbidden (non-student role)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: Access denied: insufficient permissions
+ *         description: Forbidden
  */
 router.post('/profile', studentController.createProfile);
+
+/**
+ * @swagger
+ * /api/v1/student/profile:
+ *   get:
+ *     summary: Get student profile
+ *     tags: [Student]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: OK
+ */
+router.get('/profile', studentController.getProfile);
 
 /**
  * @swagger
@@ -285,10 +223,6 @@ router.get('/appointments', studentController.getUpcomingAppointments);
  *               - dateTime
  *               - type
  *             properties:
- *               consultantId:
- *                 type: string
- *                 format: uuid
- *                 example: 98765432-12d3-4e5f-a678-426614174000
  *               dateTime:
  *                 type: string
  *                 format: date-time
@@ -437,9 +371,9 @@ router.get('/communication', studentController.getCommunicationHistory);
  * @swagger
  * /api/v1/student/reviews/documents:
  *   post:
- *     summary: Upload review documents
+ *     summary: Upload multiple review documents
  *     tags: [Student]
- *     description: Uploads documents requested for profile review.
+ *     description: Uploads one or more documents requested for profile review.
  *     security:
  *       - BearerAuth: []
  *     requestBody:
@@ -449,28 +383,33 @@ router.get('/communication', studentController.getCommunicationHistory);
  *           schema:
  *             type: object
  *             properties:
- *               file:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *               types:
  *                 type: string
- *                 format: binary
- *               type:
- *                 type: string
- *                 enum: [passport, cnic, transcript, test_score, degree, experience_letter, bank_statement, photo, other]
- *                 example: transcript
+ *                 example: '["passport", "transcript"]'
  *     responses:
  *       200:
- *         description: Document uploaded successfully
+ *         description: Documents uploaded successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Document'
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Document'
  *       400:
- *         description: Missing file or invalid type
+ *         description: Validation error (missing or mismatched fields)
  *       401:
  *         description: Unauthorized
- *       403:
- *         description: Forbidden
  */
-router.post('/reviews/documents', studentController.uploadReviewDocuments);
+router.post(
+  '/reviews/documents',
+  upload.any('files', 10),
+  studentController.uploadReviewDocuments
+);
 
 /**
  * @swagger

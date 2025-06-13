@@ -1117,4 +1117,43 @@ router.get('/reports/export/:id', superAdminController.exportReport);
  */
 router.post('/reports/schedule', superAdminController.scheduleReport);
 
+/**
+ * @swagger
+ * /api/v1/super-admin/leads/assign:
+ *   post:
+ *     summary: Assign a lead to a consultant and office
+ *     tags: [SuperAdmin]
+ *     description: Assigns a lead to a consultant who must already belong to the specified office.
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - leadId
+ *               - consultantId
+ *               - officeId
+ *             properties:
+ *               leadId:
+ *                 type: string
+ *                 format: uuid
+ *               consultantId:
+ *                 type: string
+ *                 format: uuid
+ *               officeId:
+ *                 type: string
+ *                 format: uuid
+ *     responses:
+ *       200:
+ *         description: Lead assigned successfully
+ *       400:
+ *         description: Consultant not in selected office or bad request
+ *       404:
+ *         description: Lead not found
+ */
+router.post('/leads/assign', superAdminController.assignLeadToConsultant);
+
 module.exports = router;

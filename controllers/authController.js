@@ -1,7 +1,8 @@
-const { User } = require('../models');
+const { User, Lead, StudentProfile } = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const emailService = require('../services/emailService');
+const axios = require('axios');
 
 const login = async (req, res, next) => {
   try {
@@ -21,13 +22,15 @@ const login = async (req, res, next) => {
 
     const token = jwt.sign(
       { id: user.id, role: user.role, officeId: user.officeId },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET
       // { expiresIn: '30m' } // Session timeout (User Story 1.1)
     );
 
     await User.update({ lastLogin: new Date() }, { where: { id: user.id } });
 
-    const { password: savedPassword, ...userWithoutPassword } = user.get({ plain: true });
+    const { password: savedPassword, ...userWithoutPassword } = user.get({
+      plain: true,
+    });
 
     res.json({
       token,
@@ -38,12 +41,36 @@ const login = async (req, res, next) => {
   }
 };
 
+
 const signup = async (req, res, next) => {
   try {
-    const { email, password, name, ...rest } = req.body;
+    const {
+      email,
+      password,
+      name,
+      officeId,
+      studyPreferences = {},
+      ...rest
+    } = req.body;
 
     if (!email || !password || !name) {
-      throw new Error('Email, password, and name are required');
+      throw new Error('Email, password, name, are required');
+    }
+    
+    let location = null;
+    if(!officeId){
+      // 🔍 Get user IP
+      const ip =
+        req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
+  
+      // 🌍 Optional: Get location
+      try {
+        const geo = await axios.get(`http://ip-api.com/json/${ip}`);
+        location = geo.data; // e.g., geo.data.city, geo.data.country, etc.
+        console.log('User location from IP:', location);
+      } catch (err) {
+        console.warn('Failed to fetch geolocation:', err.message);
+      }
     }
 
     const existingUser = await User.findOne({ where: { email } });
@@ -60,11 +87,39 @@ const signup = async (req, res, next) => {
       ...rest,
       role: 'student',
       isActive: true,
+      officeId,
+      signupLocation: 'in-app',
     });
 
-    res
-      .status(201)
-      .json({ message: 'Student registered successfully', userId: newUser.id });
+    // Create StudentProfile
+    await StudentProfile.create({
+      userId: newUser.id,
+      personalInfo: {},
+      educationalBackground: {},
+      studyPreferences,
+    });
+
+    // Create Lead
+    const lead = await Lead.create({
+      studentId: newUser.id,
+      officeId,
+      source: 'online',
+      assignedConsultant: null,
+      studyPreferences,
+      history: [
+        {
+          timestamp: new Date().toISOString(),
+          action: 'Lead created from student signup',
+        },
+      ],
+    });
+
+    res.status(201).json({
+      message: 'Student registered and lead created successfully',
+      userId: newUser.id,
+      leadId: lead.id,
+      location,
+    });
   } catch (error) {
     next(error);
   }
