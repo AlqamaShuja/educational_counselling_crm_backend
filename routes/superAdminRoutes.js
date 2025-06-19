@@ -9,6 +9,82 @@ router.use(protect, restrictTo('super_admin'));
 
 /**
  * @swagger
+ * /api/v1/super-admin/dashboard:
+ *   get:
+ *     summary: Get super admin dashboard statistics
+ *     tags: [SuperAdmin]
+ *     description: Retrieves comprehensive dashboard statistics for super admin.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalOffices:
+ *                   type: number
+ *                   example: 5
+ *                 totalStaff:
+ *                   type: number
+ *                   example: 25
+ *                 totalStudents:
+ *                   type: number
+ *                   example: 150
+ *                 totalCourses:
+ *                   type: number
+ *                   example: 40
+ *                 totalLeads:
+ *                   type: number
+ *                   example: 75
+ *                 totalUniversities:
+ *                   type: number
+ *                   example: 12
+ *                 leadStatusBreakdown:
+ *                   type: object
+ *                   properties:
+ *                     new:
+ *                       type: number
+ *                     in_progress:
+ *                       type: number
+ *                     converted:
+ *                       type: number
+ *                     lost:
+ *                       type: number
+ *                 officePerformance:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       officeName:
+ *                         type: string
+ *                       leadsCount:
+ *                         type: number
+ *                       conversionsCount:
+ *                         type: number
+ *                 recentActivities:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/dashboard', superAdminController.getDashboardStats);
+
+/**
+ * @swagger
  * /api/v1/super-admin/students:
  *   get:
  *     summary: Get all students
@@ -78,6 +154,12 @@ router.get('/staff', superAdminController.getAllStaff);
  *                   city:
  *                     type: string
  *                     example: Toronto
+ *                   state:
+ *                     type: string
+ *                     example: Ontario
+ *                   postalCode:
+ *                     type: string
+ *                     example: M5V 3C6
  *                   country:
  *                     type: string
  *                     example: Canada
@@ -94,13 +176,21 @@ router.get('/staff', superAdminController.getAllStaff);
  *                     type: string
  *                     format: email
  *                     example: toronto@treklin.com
+ *                   website:
+ *                     type: string
+ *                     example: https://www.example.com
  *               officeHours:
  *                 type: object
  *                 additionalProperties:
  *                   type: string
  *                 example:
- *                   Monday: "9am-5pm"
- *                   Tuesday: "9am-5pm"
+ *                   Monday: "9:00 AM - 5:00 PM"
+ *                   Tuesday: "9:00 AM - 5:00 PM"
+ *                   Wednesday: "9:00 AM - 5:00 PM"
+ *                   Thursday: "9:00 AM - 5:00 PM"
+ *                   Friday: "9:00 AM - 5:00 PM"
+ *                   Saturday: "Closed"
+ *                   Sunday: "Closed"
  *               workingDays:
  *                 type: array
  *                 items:
@@ -128,9 +218,9 @@ router.get('/staff', superAdminController.getAllStaff);
  *               consultants:
  *                 type: array
  *                 items:
- *                    type: string
- *                    format: uuid
- *                 example: ["123e4567-e89b-12d3-a456-426614174000", "223e4567-e89b-12d3-a456-426614174001"]
+ *                   type: string
+ *                   format: uuid
+ *                 example: ["123e4567-e89b-12d3-a456-426614174000"]
  *     responses:
  *       201:
  *         description: Office created successfully
