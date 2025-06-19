@@ -39,6 +39,109 @@ router.get('/students', superAdminController.getAllStudents);
 
 router.get('/staff', superAdminController.getAllStaff);
 
+// /**
+//  * @swagger
+//  * /api/v1/super-admin/offices:
+//  *   post:
+//  *     summary: Create a new office
+//  *     tags: [SuperAdmin]
+//  *     description: Creates a new office in the system.
+//  *     security:
+//  *       - BearerAuth: []
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         application/json:
+//  *           schema:
+//  *             type: object
+//  *             required:
+//  *               - name
+//  *               - address
+//  *               - contact
+//  *               - officeHours
+//  *               - workingDays
+//  *               - serviceCapacity
+//  *             properties:
+//  *               name:
+//  *                 type: string
+//  *                 example: Toronto Branch
+//  *               address:
+//  *                 type: object
+//  *                 required:
+//  *                   - street
+//  *                   - city
+//  *                   - country
+//  *                 properties:
+//  *                   street:
+//  *                     type: string
+//  *                     example: 123 University Ave
+//  *                   city:
+//  *                     type: string
+//  *                     example: Toronto
+//  *                   country:
+//  *                     type: string
+//  *                     example: Canada
+//  *               contact:
+//  *                 type: object
+//  *                 required:
+//  *                   - phone
+//  *                   - email
+//  *                 properties:
+//  *                   phone:
+//  *                     type: string
+//  *                     example: +1-416-123-4567
+//  *                   email:
+//  *                     type: string
+//  *                     format: email
+//  *                     example: toronto@treklin.com
+//  *               officeHours:
+//  *                 type: object
+//  *                 additionalProperties:
+//  *                   type: string
+//  *                 example:
+//  *                   Monday: "9am-5pm"
+//  *                   Tuesday: "9am-5pm"
+//  *               workingDays:
+//  *                 type: array
+//  *                 items:
+//  *                   type: string
+//  *                 example: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+//  *               managerId:
+//  *                 type: string
+//  *                 format: uuid
+//  *                 example: 123e4567-e89b-12d3-a456-426614174000
+//  *               serviceCapacity:
+//  *                 type: object
+//  *                 required:
+//  *                   - maxAppointments
+//  *                   - maxConsultants
+//  *                 properties:
+//  *                   maxAppointments:
+//  *                     type: number
+//  *                     example: 20
+//  *                   maxConsultants:
+//  *                     type: number
+//  *                     example: 5
+//  *               isActive:
+//  *                 type: boolean
+//  *                 example: true
+//  *               consultants:
+//  *                 type: array
+//  *                 items:
+//  *                    type: string
+//  *                    format: uuid
+//  *                 example: ["123e4567-e89b-12d3-a456-426614174000", "223e4567-e89b-12d3-a456-426614174001"]
+//  *     responses:
+//  *       201:
+//  *         description: Office created successfully
+//  *       400:
+//  *         description: Invalid input
+//  *       401:
+//  *         description: Unauthorized
+//  *       403:
+//  *         description: Forbidden
+//  */
+
 /**
  * @swagger
  * /api/v1/super-admin/offices:
@@ -78,6 +181,12 @@ router.get('/staff', superAdminController.getAllStaff);
  *                   city:
  *                     type: string
  *                     example: Toronto
+ *                   state:
+ *                     type: string
+ *                     example: Ontario
+ *                   postalCode:
+ *                     type: string
+ *                     example: M5V 3C6
  *                   country:
  *                     type: string
  *                     example: Canada
@@ -94,13 +203,21 @@ router.get('/staff', superAdminController.getAllStaff);
  *                     type: string
  *                     format: email
  *                     example: toronto@treklin.com
+ *                   website:
+ *                     type: string
+ *                     example: https://www.example.com
  *               officeHours:
  *                 type: object
  *                 additionalProperties:
  *                   type: string
  *                 example:
- *                   Monday: "9am-5pm"
- *                   Tuesday: "9am-5pm"
+ *                   Monday: "9:00 AM - 5:00 PM"
+ *                   Tuesday: "9:00 AM - 5:00 PM"
+ *                   Wednesday: "9:00 AM - 5:00 PM"
+ *                   Thursday: "9:00 AM - 5:00 PM"
+ *                   Friday: "9:00 AM - 5:00 PM"
+ *                   Saturday: "Closed"
+ *                   Sunday: "Closed"
  *               workingDays:
  *                 type: array
  *                 items:
@@ -128,9 +245,9 @@ router.get('/staff', superAdminController.getAllStaff);
  *               consultants:
  *                 type: array
  *                 items:
- *                    type: string
- *                    format: uuid
- *                 example: ["123e4567-e89b-12d3-a456-426614174000", "223e4567-e89b-12d3-a456-426614174001"]
+ *                   type: string
+ *                   format: uuid
+ *                 example: ["123e4567-e89b-12d3-a456-426614174000"]
  *     responses:
  *       201:
  *         description: Office created successfully

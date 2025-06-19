@@ -17,52 +17,115 @@ const validate = (schema, source = 'body') => {
 const userSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  role: Joi.string().valid('super_admin', 'manager', 'consultant', 'receptionist', 'student').required(),
+  role: Joi.string()
+    .valid('super_admin', 'manager', 'consultant', 'receptionist', 'student')
+    .required(),
   officeId: Joi.string().uuid().optional().allow(null),
   name: Joi.string().required(),
   phone: Joi.string().optional().allow(null),
   status: Joi.string().valid('active', 'inactive').optional(),
 });
 
+// const officeSchema = Joi.object({
+//   name: Joi.string().required(),
+//   address: Joi.object({
+//     street: Joi.string().required(),
+//     city: Joi.string().required(),
+//     country: Joi.string().required(),
+//   }).required(),
+//   contact: Joi.object({
+//     phone: Joi.string().required(),
+//     email: Joi.string().email().required(),
+//   }).required(),
+//   officeHours: Joi.object().pattern(
+//     Joi.string(), // e.g., 'Monday'
+//     Joi.string().pattern(/^\d{1,2}(am|pm)-\d{1,2}(am|pm)$/) // e.g., "9am-5pm"
+//   ).required(),
+//   workingDays: Joi.array().items(
+//     Joi.string().valid(
+//       'Monday',
+//       'Tuesday',
+//       'Wednesday',
+//       'Thursday',
+//       'Friday',
+//       'Saturday',
+//       'Sunday'
+//     )
+//   ).required(),
+//   serviceCapacity: Joi.object({
+//     maxAppointments: Joi.number().required(),
+//     maxConsultants: Joi.number().required(),
+//   }).required(),
+//   isActive: Joi.boolean().optional(),
+// });
+
 const officeSchema = Joi.object({
   name: Joi.string().required(),
+
   address: Joi.object({
     street: Joi.string().required(),
     city: Joi.string().required(),
     country: Joi.string().required(),
+    state: Joi.string().optional().allow(''),
+    postalCode: Joi.string().optional().allow(''),
   }).required(),
+
   contact: Joi.object({
     phone: Joi.string().required(),
     email: Joi.string().email().required(),
+    website: Joi.string().uri().optional().allow(''),
   }).required(),
-  officeHours: Joi.object().pattern(
-    Joi.string(), // e.g., 'Monday'
-    Joi.string().pattern(/^\d{1,2}(am|pm)-\d{1,2}(am|pm)$/) // e.g., "9am-5pm"
-  ).required(),
-  workingDays: Joi.array().items(
-    Joi.string().valid(
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday'
+
+  officeHours: Joi.object()
+    .pattern(
+      Joi.string().valid(
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday'
+      ),
+      Joi.string()
+        .pattern(
+          /^((\d{1,2})(:\d{2})?\s*(AM|PM)\s*-\s*(\d{1,2})(:\d{2})?\s*(AM|PM)|Closed)$/i
+        )
+        .allow('')
     )
-  ).required(),
+    .required(),
+
+  workingDays: Joi.array()
+    .items(
+      Joi.string().valid(
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday'
+      )
+    )
+    .required(),
+
   serviceCapacity: Joi.object({
     maxAppointments: Joi.number().required(),
     maxConsultants: Joi.number().required(),
   }).required(),
+
+  managerId: Joi.string().uuid().optional().allow(null),
+  consultants: Joi.array().items(Joi.string().uuid()).optional(),
   isActive: Joi.boolean().optional(),
 });
-
 
 const leadSchema = Joi.object({
   studentId: Joi.string().uuid().required(),
   officeId: Joi.string().uuid().required(),
   assignedConsultant: Joi.string().uuid().optional().allow(null),
-  status: Joi.string().valid('new', 'in_progress', 'converted', 'lost').required(),
+  status: Joi.string()
+    .valid('new', 'in_progress', 'converted', 'lost')
+    .required(),
   source: Joi.string().valid('walk_in', 'online', 'referral').required(),
   studyPreferences: Joi.object({
     destination: Joi.string().required(),
@@ -79,13 +142,27 @@ const appointmentSchema = Joi.object({
   officeId: Joi.string().uuid().required(),
   dateTime: Joi.date().iso().required(),
   type: Joi.string().valid('in_person', 'virtual').required(),
-  status: Joi.string().valid('scheduled', 'completed', 'canceled', 'no_show').optional(),
+  status: Joi.string()
+    .valid('scheduled', 'completed', 'canceled', 'no_show')
+    .optional(),
   notes: Joi.string().optional().allow(null),
 });
 
 const documentSchema = Joi.object({
   userId: Joi.string().uuid().required(),
-  type: Joi.string().valid('passport', 'cnic', 'transcript', 'test_score', 'degree', 'experience_letter', 'bank_statement', 'photo', 'other').required(),
+  type: Joi.string()
+    .valid(
+      'passport',
+      'cnic',
+      'transcript',
+      'test_score',
+      'degree',
+      'experience_letter',
+      'bank_statement',
+      'photo',
+      'other'
+    )
+    .required(),
   filePath: Joi.string().required(),
   status: Joi.string().valid('pending', 'approved', 'rejected').optional(),
   expiryDate: Joi.date().iso().optional().allow(null),
@@ -100,7 +177,16 @@ const notificationSchema = Joi.object({
 });
 
 const reportSchema = Joi.object({
-  type: Joi.string().valid('office_performance', 'consultant_productivity', 'lead_conversion', 'revenue', 'student_demographics', 'study_destinations').required(),
+  type: Joi.string()
+    .valid(
+      'office_performance',
+      'consultant_productivity',
+      'lead_conversion',
+      'revenue',
+      'student_demographics',
+      'study_destinations'
+    )
+    .required(),
   data: Joi.object().required(),
   format: Joi.string().valid('pdf', 'excel').required(),
   scheduled: Joi.boolean().optional(),

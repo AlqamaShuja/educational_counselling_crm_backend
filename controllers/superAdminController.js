@@ -113,7 +113,7 @@ const createOffice = async (req, res, next) => {
       await OfficeConsultant.bulkCreate(assignments);
 
       for (const userId of validIds) {
-        await sendNotification({
+        await notificationService.sendNotification({
           userId,
           type: 'in_app',
           message: `You have been assigned to a new office.`,
@@ -126,7 +126,7 @@ const createOffice = async (req, res, next) => {
     }
 
     // Fetch full office with manager and consultants
-    const fullOffice = await Office.findByPk(id, {
+    const fullOffice = await Office.findByPk(office.id, {
       include: [
         {
           model: User,
@@ -148,6 +148,11 @@ const createOffice = async (req, res, next) => {
 
     res.status(201).json(fullOffice);
   } catch (error) {
+    if(error.name === "SequelizeUniqueConstraintError"){
+      const message = "Office Name Must be Unique"
+      //error && error.length > 0 && error[0].message == 'name must be unique' ?  "Office Name Must be Unique": error[0].message;
+      return res.status(400).json({ message, error: message });
+    }
     next(error);
   }
 };
@@ -191,7 +196,7 @@ const updateOffice = async (req, res, next) => {
         await OfficeConsultant.bulkCreate(newAssignments);
 
         for (const userId of validIds) {
-          await sendNotification({
+          await notificationService.sendNotification({
             userId,
             type: 'in_app',
             message: `You have been assigned to an updated office.`,
@@ -243,7 +248,7 @@ const toggleOfficeStatus = async (req, res, next) => {
     await office.update({ isActive: !office.isActive });
 
     if (office.managerId) {
-      await sendNotification({
+      await notificationService.sendNotification({
         userId: office.managerId,
         type: 'in_app',
         message: `Your office has been ${office.isActive ? 'activated' : 'deactivated'}.`,
@@ -312,7 +317,7 @@ const updateStaff = async (req, res, next) => {
     const user = await User.findByPk(id);
     if (!user) throw new Error('User not found');
     await user.update(req.body);
-    await sendNotification({
+    await notificationService.sendNotification({
       userId: user.id,
       type: 'in_app',
       message: `Your staff profile has been updated.`,
@@ -337,7 +342,7 @@ const toggleStaffStatus = async (req, res, next) => {
       status: user.status === 'active' ? 'inactive' : 'active',
     });
 
-    await sendNotification({
+    await notificationService.sendNotification({
       userId: user.id,
       type: 'in_app',
       message: `Your account has been ${user.status}.`,
@@ -389,7 +394,7 @@ const createLeadRule = async (req, res, next) => {
     const rule = await LeadDistributionRule.create(ruleData);
 
     if (ruleData.consultantId) {
-      await sendNotification({
+      await notificationService.sendNotification({
         userId: ruleData.consultantId,
         type: 'in_app',
         message: `A new lead distribution rule has been assigned to you.`,
@@ -431,7 +436,7 @@ const updateLeadRule = async (req, res, next) => {
     await rule.update(req.body);
 
     if (req.body.consultantId) {
-      await sendNotification({
+      await notificationService.sendNotification({
         userId: req.body.consultantId,
         type: 'in_app',
         message: `A lead distribution rule assigned to you has been updated.`,
@@ -518,7 +523,7 @@ const reassignLead = async (req, res, next) => {
     await leadService.logLeadHistory(lead.id, 'reassigned', req.user.id);
 
     if (consultantId) {
-      await sendNotification({
+      await notificationService.sendNotification({
         userId: consultantId,
         type: 'in_app',
         message: `You have been assigned a new lead.`,
@@ -530,7 +535,7 @@ const reassignLead = async (req, res, next) => {
     }
 
     if (lead.assignedConsultant && lead.assignedConsultant !== consultantId) {
-      await sendNotification({
+      await notificationService.sendNotification({
         userId: lead.assignedConsultant,
         type: 'in_app',
         message: `A lead previously assigned to you has been reassigned.`,
