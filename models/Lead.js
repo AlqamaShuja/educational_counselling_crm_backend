@@ -69,7 +69,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       studyPreferences: {
         type: DataTypes.JSONB,
-        allowNull: false,
+        allowNull: true,
       },
       languagePreference: {
         type: DataTypes.ENUM('english', 'urdu'),

@@ -35,7 +35,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       educationalBackground: {
         type: DataTypes.JSONB,
-        allowNull: false,
+        allowNull: true,
       },
       testScores: {
         type: DataTypes.JSONB,
@@ -43,7 +43,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       studyPreferences: {
         type: DataTypes.JSONB,
-        allowNull: false,
+        allowNull: true,
       },
       workExperience: {
         type: DataTypes.JSONB,

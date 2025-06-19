@@ -63,6 +63,7 @@ module.exports = (sequelize, DataTypes) => {
       ),
       officeId: DataTypes.UUID,
       name: DataTypes.STRING,
+      isProfileCreated: DataTypes.BOOLEAN,
       phone: DataTypes.STRING,
       signupLocation: DataTypes.STRING,
       isActive: DataTypes.BOOLEAN,

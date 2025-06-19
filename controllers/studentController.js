@@ -15,6 +15,8 @@ const reportService = require('../services/reportService');
 const createProfile = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log(userId, 'User ID from create');
+
     const {
       personalInfo,
       educationalBackground,
@@ -24,13 +26,16 @@ const createProfile = async (req, res) => {
       financialInfo,
       additionalInfo,
     } = req.body;
-
     // Validate required fields for creation
-    if (!personalInfo || !educationalBackground || !studyPreferences) {
+    if (!personalInfo) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized: User ID not found' });
     }
 
     let profile = await StudentProfile.findOne({ where: { userId } });
+    console.log(profile, 'User profile from create');
 
     if (profile) {
       // 🛠️ Update only provided fields
@@ -65,13 +70,14 @@ const createProfile = async (req, res) => {
     profile = await StudentProfile.create({
       userId,
       personalInfo,
-      educationalBackground,
-      studyPreferences,
-      testScores,
-      workExperience,
-      financialInfo,
-      additionalInfo,
+      educationalBackground: educationalBackground || {}, // or [] based on schema
+      studyPreferences: studyPreferences || {},
+      testScores: testScores || {},
+      workExperience: workExperience || {},
+      financialInfo: financialInfo || {},
+      additionalInfo: additionalInfo || {},
     });
+    await User.update({ isProfileCreated: true }, { where: { id: userId } });
 
     const office = await Office.findOne();
     if (!office) {
@@ -84,7 +90,7 @@ const createProfile = async (req, res) => {
       studentId: userId,
       officeId: office.id,
       source: 'online',
-      studyPreferences,
+      studyPreferences: studyPreferences || {},
       languagePreference: personalInfo.languagePreference || 'english',
       history: [
         {
@@ -132,14 +138,23 @@ const createProfile = async (req, res) => {
 
 const getProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const authUserId = req.user.id;
+    console.log(authUserId, 'Authenticated user ID');
 
+    // Step 1: Find the user
+    const user = await User.findByPk(authUserId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    console.log(user.id, 'User found');
+    // Step 2: Look up StudentProfile by userId
     const profile = await StudentProfile.findOne({
-      where: { userId },
+      where: { userId: user.id },
     });
 
     if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' });
+      return res.status(404).json({ error: 'Student profile not found' });
     }
 
     res.status(200).json({ profile });
@@ -151,8 +166,12 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res, next) => {
   try {
-    const profile = await StudentProfile.findOne({ userId: req.user.id });
+    const profile = await StudentProfile.findOne({
+      where: { userId: req.user.id },
+    });
     if (!profile) throw new Error('Profile not found');
+
+    console.log(req.body, 'Update profile data:', req.body);
     await profile.update(req.body);
     await notificationService.sendNotification({
       userId: req.user.id,
@@ -209,31 +228,33 @@ const bookAppointment = async (req, res, next) => {
     const studentId = req.user.id;
 
     // Check if student has a lead and assigned consultant
-    const lead = await Lead.findOne({ where: { studentId } });
+    // const lead = await Lead.findOne({ where: { studentId } });
 
-    if (!lead || !lead.assignedConsultant || !lead.officeId) {
-      // ❗ No consultant/office assigned – find super_admin or admin
-      const admin = await User.findOne({ where: { role: 'super_admin' } });
+    // if (!lead || !lead.assignedConsultant || !lead.officeId) {
+    //   // ❗ No consultant/office assigned – find super_admin or admin
+    //   const admin = await User.findOne({ where: { role: 'super_admin' } });
 
-      if (admin) {
-        await notificationService.sendMessage({
-          studentId: admin.id,
-          senderId: studentId,
-          message:
-            'Request to assign office and consultant to the student before booking appointment.',
-        });
-      }
+    //   if (admin) {
+    //     await notificationService.sendMessage({
+    //       studentId: admin.id,
+    //       senderId: studentId,
+    //       message:
+    //         'Request to assign office and consultant to the student before booking appointment.',
+    //     });
+    //   }
 
-      return res.status(400).json({
-        error:
-          'You are not assigned to any consultant or office. A request has been sent to admin.',
-      });
-    }
+    //   return res.status(400).json({
+    //     error:
+    //       'You are not assigned to any consultant or office. A request has been sent to admin.',
+    //   });
+    // }
 
     // ✅ Create appointment with assigned consultant
     const appointmentData = {
       studentId,
-      consultantId: lead.assignedConsultant,
+      // consultantId: lead.assignedConsultant,
+      consultantId: 'a05e4e98-8444-4ee3-bf88-2ace28c91431',
+      officeId: '95e9d665-9c4f-44e5-a38c-87726b9878ff',
       dateTime: req.body.dateTime,
       type: req.body.type,
       notes: req.body.notes,
@@ -247,16 +268,16 @@ const bookAppointment = async (req, res, next) => {
       appointment.id
     );
 
-    await notificationService.sendNotification({
-      userId: lead.assignedConsultant,
-      type: 'in_app',
-      message: 'A new appointment has been booked by a student.',
-      details: {
-        studentId,
-        appointmentId: appointment.id,
-        dateTime: appointment.dateTime,
-      },
-    });
+    // await notificationService.sendNotification({
+    //   userId: lead.assignedConsultant,
+    //   type: 'in_app',
+    //   message: 'A new appointment has been booked by a student.',
+    //   details: {
+    //     studentId,
+    //     appointmentId: appointment.id,
+    //     dateTime: appointment.dateTime,
+    //   },
+    // });
 
     res.status(201).json(appointment);
   } catch (error) {
@@ -347,20 +368,34 @@ const uploadReviewDocuments = async (req, res, next) => {
       throw new Error('File(s) required');
     }
 
-    if (!Array.isArray(types)) {
-      types = types.split(',').map((t) => t.trim());
+    // Handle different formats of types input
+    if (!types) {
+      throw new Error('Document type(s) required');
     }
 
+    // Convert types to array if it's not already
+    if (typeof types === 'string') {
+      // Handle comma-separated string: "passport,transcript"
+      types = types.includes(',')
+        ? types.split(',').map((t) => t.trim())
+        : [types.trim()]; // Single type as string
+    } else if (!Array.isArray(types)) {
+      // Handle other non-array formats
+      types = [types];
+    }
+
+    // Ensure types is an array and has the correct length
     if (types.length !== files.length) {
       return res.status(400).json({
-        error: 'The number of types must match the number of uploaded files',
+        error: `The number of types (${types.length}) must match the number of uploaded files (${files.length})`,
       });
     }
 
     if (!types.every((type) => VALID_TYPES.includes(type))) {
-      return res
-        .status(400)
-        .json({ error: 'Invalid document type(s) provided' });
+      return res.status(400).json({
+        error: 'Invalid document type(s) provided',
+        validTypes: VALID_TYPES,
+      });
     }
 
     const documents = await Promise.all(
@@ -369,6 +404,8 @@ const uploadReviewDocuments = async (req, res, next) => {
           userId,
           type: types[index],
           filePath: file.path,
+          fileName: file.originalname, // Add this if you want to store original filename
+          fileSize: file.size, // Add this if you want to store file size
         });
 
         await Notification.create({
@@ -392,13 +429,13 @@ const uploadReviewDocuments = async (req, res, next) => {
         });
 
         // Notify assigned consultant (if any)
-        const lead = await Lead.findOne({ where: { studentId: req.user.id } });
+        const lead = await Lead.findOne({ where: { studentId: userId } });
         if (lead?.assignedConsultant) {
           await notificationService.sendNotification({
             userId: lead.assignedConsultant,
             type: 'in_app',
             message: `A student has uploaded a new document: ${types[index]}`,
-            details: { documentId: document.id, studentId: req.user.id },
+            details: { documentId: document.id, studentId: userId },
           });
         }
 
@@ -406,12 +443,15 @@ const uploadReviewDocuments = async (req, res, next) => {
       })
     );
 
-    res.json(documents);
+    res.json({
+      success: true,
+      message: `${documents.length} document(s) uploaded successfully`,
+      documents,
+    });
   } catch (error) {
     next(error);
   }
 };
-
 const updateProfileInfo = async (req, res, next) => {
   try {
     const profile = await StudentProfile.findOne({ userId: req.user.id });

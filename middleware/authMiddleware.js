@@ -4,7 +4,10 @@ const { User } = require('../models');
 const protect = async (req, res, next) => {
   try {
     let token;
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith('Bearer')
+    ) {
       token = req.headers.authorization.split(' ')[1];
     }
 
@@ -37,7 +40,9 @@ const protect = async (req, res, next) => {
 const restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
-      return res.status(403).send({ error: 'Access denied: insufficient permissions' });
+      return res
+        .status(403)
+        .send({ error: 'Access denied: insufficient permissions' });
     }
     next();
   };
