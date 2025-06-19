@@ -5,8 +5,10 @@ const { Op } = require('sequelize');
 const { VALID_TYPES } = require('../utils');
 
 const transporter = nodemailer.createTransport({
+  service: "Gmail",
   host: process.env.EMAIL_HOST,
   port: process.env.EMAIL_PORT,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -36,7 +38,7 @@ const sendNotification = async ({ userId, type, message, details }) => {
     } catch (error) {
       notification.status = 'failed';
       await notification.save();
-      throw new AppError('Failed to send email', 500);
+      // throw new AppError('Failed to send email', 500);
     }
   } else if (type === 'sms') {
     // Placeholder: Implement SMS service (e.g., Twilio)

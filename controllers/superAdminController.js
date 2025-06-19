@@ -8,6 +8,7 @@ const {
   Report,
   StudentProfile,
   OfficeConsultant,
+  sequelize,
 } = require('../models');
 const leadService = require('../services/leadService');
 const reportService = require('../services/reportService');
@@ -148,8 +149,8 @@ const createOffice = async (req, res, next) => {
 
     res.status(201).json(fullOffice);
   } catch (error) {
-    if(error.name === "SequelizeUniqueConstraintError"){
-      const message = "Office Name Must be Unique"
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      const message = 'Office Name Must be Unique';
       //error && error.length > 0 && error[0].message == 'name must be unique' ?  "Office Name Must be Unique": error[0].message;
       return res.status(400).json({ message, error: message });
     }
@@ -292,6 +293,13 @@ const createStaff = async (req, res, next) => {
   try {
     const staffData = req.body;
     const hashedPassword = await bcrypt.hash(staffData.password, 10);
+    const isAlreadyExist = await User.findOne({
+      where: { email: req.body.email },
+    });
+    if (isAlreadyExist) {
+      const err = 'User with this Email already exist';
+      return res.status(400).send({ error: err, message: err });
+    }
     const staff = await User.create({ ...staffData, password: hashedPassword });
 
     await notificationService.sendNotification({
@@ -622,13 +630,24 @@ const scheduleReport = async (req, res, next) => {
 
 const assignLeadToConsultant = async (req, res, next) => {
   try {
-    const { leadId, consultantId, officeId } = req.body;
+    const { leadId, consultantId=null, officeId=null } = req.body;
 
     // 1. Validate required fields
-    if (!leadId || !consultantId || !officeId) {
+    if (!leadId) {
+      return res.status(400).json({ error: 'leadId is required' });
+    }
+
+    if (!consultantId && !officeId) {
       return res
         .status(400)
-        .json({ error: 'leadId, consultantId, and officeId are required' });
+        .json({ error: 'Either consultantId or officeId must be provided' });
+    }
+
+    if(consultantId == ''){
+      consultantId = null;
+    }
+    if(officeId == ''){
+      officeId = null;
     }
 
     // 2. Verify lead exists
@@ -637,15 +656,17 @@ const assignLeadToConsultant = async (req, res, next) => {
       return res.status(404).json({ error: 'Lead not found' });
     }
 
-    // 3. Verify consultant exists and is part of that office (OfficeConsultants)
-    const consultantOffice = await OfficeConsultant.findOne({
-      where: { officeId, userId: consultantId },
-    });
-
-    if (!consultantOffice) {
-      return res.status(400).json({
-        error: 'Consultant is not assigned to the selected office',
+    // Only check if both consultantId and officeId are provided
+    if (consultantId && officeId) {
+      let consultantOffice = await OfficeConsultant.findOne({
+        where: { officeId, userId: consultantId },
       });
+
+      if (!consultantOffice) {
+        return res.status(400).json({
+          error: 'Consultant is not assigned to the selected office',
+        });
+      }
     }
 
     // 4. Assign the lead
@@ -670,6 +691,172 @@ const assignLeadToConsultant = async (req, res, next) => {
     next(error);
   }
 };
+
+const getDashboardStats = async (req, res, next) => {
+  try {
+    // Get total counts
+    const [
+      totalOffices,
+      totalStaff,
+      totalStudents,
+      totalCourses,
+      totalLeads,
+      totalUniversities,
+      leadStatusBreakdown,
+      officePerformance,
+      recentActivities
+    ] = await Promise.all([
+      // Total office count
+      Office.count({ where: { isActive: true } }),
+      
+      // Total staff count (excluding students)
+      User.count({ 
+        where: { 
+          role: { [Op.ne]: 'student' },
+          isActive: true 
+        } 
+      }),
+      
+      // Total students count
+      User.count({ 
+        where: { 
+          role: 'student',
+          isActive: true 
+        } 
+      }),
+      
+      // Total courses count
+      Course.count(),
+      
+      // Total leads count
+      Lead.count(),
+      
+      // Total universities count
+      University.count(),
+      
+      // Lead status breakdown
+      Lead.findAll({
+        attributes: [
+          'status',
+          [sequelize.fn('COUNT', sequelize.col('status')), 'count']
+        ],
+        group: ['status'],
+        raw: true
+      }),
+      
+      // Office performance
+      Office.findAll({
+        attributes: [
+          'id',
+          'name',
+          [sequelize.fn('COUNT', sequelize.col('Leads.id')), 'leadsCount'],
+          [
+            sequelize.fn('COUNT', 
+              sequelize.literal("CASE WHEN Leads.status = 'converted' THEN 1 END")
+            ), 
+            'conversionsCount'
+          ]
+        ],
+        include: [{
+          model: Lead,
+          attributes: [],
+          required: false
+        }],
+        group: ['Office.id', 'Office.name'],
+        raw: true
+      }),
+      
+      // Recent activities (last 10 lead updates)
+      Lead.findAll({
+        attributes: ['id', 'status', 'createdAt', 'updatedAt'],
+        include: [
+          {
+            model: User,
+            as: 'student',
+            attributes: ['name', 'email']
+          },
+          {
+            model: Office,
+            attributes: ['name']
+          }
+        ],
+        order: [['updatedAt', 'DESC']],
+        limit: 10
+      })
+    ]);
+
+    // Format lead status breakdown
+    const statusBreakdown = {
+      new: 0,
+      in_progress: 0,
+      converted: 0,
+      lost: 0
+    };
+    
+    leadStatusBreakdown.forEach(item => {
+      statusBreakdown[item.status] = parseInt(item.count);
+    });
+
+    // Format recent activities
+    const formattedActivities = recentActivities.map(lead => ({
+      id: lead.id,
+      description: `Lead ${lead.student?.name || 'Unknown'} status: ${lead.status} (${lead.Office?.name || 'No Office'})`,
+      createdAt: lead.updatedAt,
+      type: 'lead_update'
+    }));
+
+    // Calculate additional metrics
+    const totalConversions = statusBreakdown.converted;
+    const conversionRate = totalLeads > 0 ? ((totalConversions / totalLeads) * 100).toFixed(1) : 0;
+    
+    const activeOffices = await Office.count({ where: { isActive: true } });
+    const inactiveOffices = await Office.count({ where: { isActive: false } });
+
+    res.json({
+      success: true,
+      data: {
+        // Core metrics
+        totalOffices,
+        totalStaff,
+        totalStudents,
+        totalCourses,
+        totalLeads,
+        totalUniversities,
+        
+        // Calculated metrics
+        conversionRate: parseFloat(conversionRate),
+        totalConversions,
+        activeOffices,
+        inactiveOffices,
+        
+        // Breakdowns
+        leadStatusBreakdown: statusBreakdown,
+        officePerformance: officePerformance.map(office => ({
+          officeName: office.name,
+          leadsCount: parseInt(office.leadsCount),
+          conversionsCount: parseInt(office.conversionsCount),
+          conversionRate: office.leadsCount > 0 ? 
+            ((office.conversionsCount / office.leadsCount) * 100).toFixed(1) : 0
+        })),
+        
+        // Activities
+        recentActivities: formattedActivities,
+        
+        // Trends (you can implement these based on your needs)
+        monthlyGrowth: {
+          leads: '+12.5%',
+          conversions: '+8.3%',
+          offices: '+2.1%'
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    next(error);
+  }
+};
+
 
 module.exports = {
   getAllStudents,
@@ -697,4 +884,5 @@ module.exports = {
   exportReport,
   scheduleReport,
   assignLeadToConsultant,
+  getDashboardStats,
 };

@@ -39,109 +39,6 @@ router.get('/students', superAdminController.getAllStudents);
 
 router.get('/staff', superAdminController.getAllStaff);
 
-// /**
-//  * @swagger
-//  * /api/v1/super-admin/offices:
-//  *   post:
-//  *     summary: Create a new office
-//  *     tags: [SuperAdmin]
-//  *     description: Creates a new office in the system.
-//  *     security:
-//  *       - BearerAuth: []
-//  *     requestBody:
-//  *       required: true
-//  *       content:
-//  *         application/json:
-//  *           schema:
-//  *             type: object
-//  *             required:
-//  *               - name
-//  *               - address
-//  *               - contact
-//  *               - officeHours
-//  *               - workingDays
-//  *               - serviceCapacity
-//  *             properties:
-//  *               name:
-//  *                 type: string
-//  *                 example: Toronto Branch
-//  *               address:
-//  *                 type: object
-//  *                 required:
-//  *                   - street
-//  *                   - city
-//  *                   - country
-//  *                 properties:
-//  *                   street:
-//  *                     type: string
-//  *                     example: 123 University Ave
-//  *                   city:
-//  *                     type: string
-//  *                     example: Toronto
-//  *                   country:
-//  *                     type: string
-//  *                     example: Canada
-//  *               contact:
-//  *                 type: object
-//  *                 required:
-//  *                   - phone
-//  *                   - email
-//  *                 properties:
-//  *                   phone:
-//  *                     type: string
-//  *                     example: +1-416-123-4567
-//  *                   email:
-//  *                     type: string
-//  *                     format: email
-//  *                     example: toronto@treklin.com
-//  *               officeHours:
-//  *                 type: object
-//  *                 additionalProperties:
-//  *                   type: string
-//  *                 example:
-//  *                   Monday: "9am-5pm"
-//  *                   Tuesday: "9am-5pm"
-//  *               workingDays:
-//  *                 type: array
-//  *                 items:
-//  *                   type: string
-//  *                 example: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-//  *               managerId:
-//  *                 type: string
-//  *                 format: uuid
-//  *                 example: 123e4567-e89b-12d3-a456-426614174000
-//  *               serviceCapacity:
-//  *                 type: object
-//  *                 required:
-//  *                   - maxAppointments
-//  *                   - maxConsultants
-//  *                 properties:
-//  *                   maxAppointments:
-//  *                     type: number
-//  *                     example: 20
-//  *                   maxConsultants:
-//  *                     type: number
-//  *                     example: 5
-//  *               isActive:
-//  *                 type: boolean
-//  *                 example: true
-//  *               consultants:
-//  *                 type: array
-//  *                 items:
-//  *                    type: string
-//  *                    format: uuid
-//  *                 example: ["123e4567-e89b-12d3-a456-426614174000", "223e4567-e89b-12d3-a456-426614174001"]
-//  *     responses:
-//  *       201:
-//  *         description: Office created successfully
-//  *       400:
-//  *         description: Invalid input
-//  *       401:
-//  *         description: Unauthorized
-//  *       403:
-//  *         description: Forbidden
-//  */
-
 /**
  * @swagger
  * /api/v1/super-admin/offices:
@@ -1272,5 +1169,81 @@ router.post('/reports/schedule', superAdminController.scheduleReport);
  *         description: Lead not found
  */
 router.post('/leads/assign', superAdminController.assignLeadToConsultant);
+
+/**
+ * @swagger
+ * /api/v1/super-admin/dashboard:
+ *   get:
+ *     summary: Get super admin dashboard statistics
+ *     tags: [SuperAdmin]
+ *     description: Retrieves comprehensive dashboard statistics for super admin.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalOffices:
+ *                   type: number
+ *                   example: 5
+ *                 totalStaff:
+ *                   type: number
+ *                   example: 25
+ *                 totalStudents:
+ *                   type: number
+ *                   example: 150
+ *                 totalCourses:
+ *                   type: number
+ *                   example: 40
+ *                 totalLeads:
+ *                   type: number
+ *                   example: 75
+ *                 totalUniversities:
+ *                   type: number
+ *                   example: 12
+ *                 leadStatusBreakdown:
+ *                   type: object
+ *                   properties:
+ *                     new:
+ *                       type: number
+ *                     in_progress:
+ *                       type: number
+ *                     converted:
+ *                       type: number
+ *                     lost:
+ *                       type: number
+ *                 officePerformance:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       officeName:
+ *                         type: string
+ *                       leadsCount:
+ *                         type: number
+ *                       conversionsCount:
+ *                         type: number
+ *                 recentActivities:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/dashboard', superAdminController.getDashboardStats);
 
 module.exports = router;
