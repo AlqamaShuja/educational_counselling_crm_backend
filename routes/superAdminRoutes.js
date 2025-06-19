@@ -9,6 +9,82 @@ router.use(protect, restrictTo('super_admin'));
 
 /**
  * @swagger
+ * /api/v1/super-admin/dashboard:
+ *   get:
+ *     summary: Get super admin dashboard statistics
+ *     tags: [SuperAdmin]
+ *     description: Retrieves comprehensive dashboard statistics for super admin.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalOffices:
+ *                   type: number
+ *                   example: 5
+ *                 totalStaff:
+ *                   type: number
+ *                   example: 25
+ *                 totalStudents:
+ *                   type: number
+ *                   example: 150
+ *                 totalCourses:
+ *                   type: number
+ *                   example: 40
+ *                 totalLeads:
+ *                   type: number
+ *                   example: 75
+ *                 totalUniversities:
+ *                   type: number
+ *                   example: 12
+ *                 leadStatusBreakdown:
+ *                   type: object
+ *                   properties:
+ *                     new:
+ *                       type: number
+ *                     in_progress:
+ *                       type: number
+ *                     converted:
+ *                       type: number
+ *                     lost:
+ *                       type: number
+ *                 officePerformance:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       officeName:
+ *                         type: string
+ *                       leadsCount:
+ *                         type: number
+ *                       conversionsCount:
+ *                         type: number
+ *                 recentActivities:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/dashboard', superAdminController.getDashboardStats);
+
+/**
+ * @swagger
  * /api/v1/super-admin/students:
  *   get:
  *     summary: Get all students
@@ -1169,81 +1245,5 @@ router.post('/reports/schedule', superAdminController.scheduleReport);
  *         description: Lead not found
  */
 router.post('/leads/assign', superAdminController.assignLeadToConsultant);
-
-/**
- * @swagger
- * /api/v1/super-admin/dashboard:
- *   get:
- *     summary: Get super admin dashboard statistics
- *     tags: [SuperAdmin]
- *     description: Retrieves comprehensive dashboard statistics for super admin.
- *     security:
- *       - BearerAuth: []
- *     responses:
- *       200:
- *         description: Dashboard statistics retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 totalOffices:
- *                   type: number
- *                   example: 5
- *                 totalStaff:
- *                   type: number
- *                   example: 25
- *                 totalStudents:
- *                   type: number
- *                   example: 150
- *                 totalCourses:
- *                   type: number
- *                   example: 40
- *                 totalLeads:
- *                   type: number
- *                   example: 75
- *                 totalUniversities:
- *                   type: number
- *                   example: 12
- *                 leadStatusBreakdown:
- *                   type: object
- *                   properties:
- *                     new:
- *                       type: number
- *                     in_progress:
- *                       type: number
- *                     converted:
- *                       type: number
- *                     lost:
- *                       type: number
- *                 officePerformance:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       officeName:
- *                         type: string
- *                       leadsCount:
- *                         type: number
- *                       conversionsCount:
- *                         type: number
- *                 recentActivities:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       description:
- *                         type: string
- *                       createdAt:
- *                         type: string
- *                         format: date-time
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- */
-router.get('/dashboard', superAdminController.getDashboardStats);
 
 module.exports = router;

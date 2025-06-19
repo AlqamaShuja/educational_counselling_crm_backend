@@ -9,6 +9,8 @@ const {
   StudentProfile,
   OfficeConsultant,
   sequelize,
+  Course,
+  University,
 } = require('../models');
 const leadService = require('../services/leadService');
 const reportService = require('../services/reportService');
@@ -630,7 +632,7 @@ const scheduleReport = async (req, res, next) => {
 
 const assignLeadToConsultant = async (req, res, next) => {
   try {
-    const { leadId, consultantId=null, officeId=null } = req.body;
+    const { leadId, consultantId = null, officeId = null } = req.body;
 
     // 1. Validate required fields
     if (!leadId) {
@@ -643,10 +645,10 @@ const assignLeadToConsultant = async (req, res, next) => {
         .json({ error: 'Either consultantId or officeId must be provided' });
     }
 
-    if(consultantId == ''){
+    if (consultantId == '') {
       consultantId = null;
     }
-    if(officeId == ''){
+    if (officeId == '') {
       officeId = null;
     }
 
@@ -704,68 +706,84 @@ const getDashboardStats = async (req, res, next) => {
       totalUniversities,
       leadStatusBreakdown,
       officePerformance,
-      recentActivities
+      recentActivities,
     ] = await Promise.all([
       // Total office count
       Office.count({ where: { isActive: true } }),
-      
+
       // Total staff count (excluding students)
-      User.count({ 
-        where: { 
+      User.count({
+        where: {
           role: { [Op.ne]: 'student' },
-          isActive: true 
-        } 
+          isActive: true,
+        },
       }),
-      
+
       // Total students count
-      User.count({ 
-        where: { 
+      User.count({
+        where: {
           role: 'student',
-          isActive: true 
-        } 
+          isActive: true,
+        },
       }),
-      
+
       // Total courses count
       Course.count(),
-      
+
       // Total leads count
       Lead.count(),
-      
+
       // Total universities count
       University.count(),
-      
+
       // Lead status breakdown
       Lead.findAll({
         attributes: [
           'status',
-          [sequelize.fn('COUNT', sequelize.col('status')), 'count']
+          [sequelize.fn('COUNT', sequelize.col('status')), 'count'],
         ],
         group: ['status'],
-        raw: true
+        raw: true,
       }),
-      
-      // Office performance
+
+      // Office performance - Fixed the table name reference
       Office.findAll({
         attributes: [
           'id',
           'name',
-          [sequelize.fn('COUNT', sequelize.col('Leads.id')), 'leadsCount'],
           [
-            sequelize.fn('COUNT', 
-              sequelize.literal("CASE WHEN Leads.status = 'converted' THEN 1 END")
-            ), 
-            'conversionsCount'
-          ]
+            sequelize.fn('COUNT', sequelize.col('LeadDistributionRules.id')),
+            'leadsCount',
+          ],
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*) 
+              FROM "Leads" 
+              WHERE "Leads"."officeId" = "Office"."id" 
+              AND "Leads"."status" = 'converted'
+            )`),
+            'conversionsCount',
+          ],
+          [
+            sequelize.literal(`(
+              SELECT COUNT(*) 
+              FROM "Leads" 
+              WHERE "Leads"."officeId" = "Office"."id"
+            )`),
+            'totalLeadsCount',
+          ],
         ],
-        include: [{
-          model: Lead,
-          attributes: [],
-          required: false
-        }],
+        include: [
+          {
+            model: LeadDistributionRule,
+            attributes: [],
+            required: false,
+          },
+        ],
         group: ['Office.id', 'Office.name'],
-        raw: true
+        raw: true,
       }),
-      
+
       // Recent activities (last 10 lead updates)
       Lead.findAll({
         attributes: ['id', 'status', 'createdAt', 'updatedAt'],
@@ -773,16 +791,16 @@ const getDashboardStats = async (req, res, next) => {
           {
             model: User,
             as: 'student',
-            attributes: ['name', 'email']
+            attributes: ['name', 'email'],
           },
           {
             model: Office,
-            attributes: ['name']
-          }
+            attributes: ['name'],
+          },
         ],
         order: [['updatedAt', 'DESC']],
-        limit: 10
-      })
+        limit: 10,
+      }),
     ]);
 
     // Format lead status breakdown
@@ -790,26 +808,27 @@ const getDashboardStats = async (req, res, next) => {
       new: 0,
       in_progress: 0,
       converted: 0,
-      lost: 0
+      lost: 0,
     };
-    
-    leadStatusBreakdown.forEach(item => {
+
+    leadStatusBreakdown.forEach((item) => {
       statusBreakdown[item.status] = parseInt(item.count);
     });
 
     // Format recent activities
-    const formattedActivities = recentActivities.map(lead => ({
+    const formattedActivities = recentActivities.map((lead) => ({
       id: lead.id,
       description: `Lead ${lead.student?.name || 'Unknown'} status: ${lead.status} (${lead.Office?.name || 'No Office'})`,
       createdAt: lead.updatedAt,
-      type: 'lead_update'
+      type: 'lead_update',
     }));
 
     // Calculate additional metrics
     const totalConversions = statusBreakdown.converted;
-    const conversionRate = totalLeads > 0 ? ((totalConversions / totalLeads) * 100).toFixed(1) : 0;
-    
-    const activeOffices = await Office.count({ where: { isActive: true } });
+    const conversionRate =
+      totalLeads > 0 ? ((totalConversions / totalLeads) * 100).toFixed(1) : 0;
+
+    const activeOffices = totalOffices; // Already counted active offices
     const inactiveOffices = await Office.count({ where: { isActive: false } });
 
     res.json({
@@ -822,41 +841,44 @@ const getDashboardStats = async (req, res, next) => {
         totalCourses,
         totalLeads,
         totalUniversities,
-        
+
         // Calculated metrics
         conversionRate: parseFloat(conversionRate),
         totalConversions,
         activeOffices,
         inactiveOffices,
-        
+
         // Breakdowns
         leadStatusBreakdown: statusBreakdown,
-        officePerformance: officePerformance.map(office => ({
+        officePerformance: officePerformance.map((office) => ({
           officeName: office.name,
-          leadsCount: parseInt(office.leadsCount),
-          conversionsCount: parseInt(office.conversionsCount),
-          conversionRate: office.leadsCount > 0 ? 
-            ((office.conversionsCount / office.leadsCount) * 100).toFixed(1) : 0
+          leadsCount: parseInt(office.totalLeadsCount || 0),
+          conversionsCount: parseInt(office.conversionsCount || 0),
+          conversionRate:
+            office.totalLeadsCount > 0
+              ? (
+                  (office.conversionsCount / office.totalLeadsCount) *
+                  100
+                ).toFixed(1)
+              : 0,
         })),
-        
+
         // Activities
         recentActivities: formattedActivities,
-        
-        // Trends (you can implement these based on your needs)
+
+        // Trends (mock data for now)
         monthlyGrowth: {
           leads: '+12.5%',
           conversions: '+8.3%',
-          offices: '+2.1%'
-        }
-      }
+          offices: '+2.1%',
+        },
+      },
     });
-
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
     next(error);
   }
 };
-
 
 module.exports = {
   getAllStudents,
