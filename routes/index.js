@@ -9,6 +9,7 @@ const studentRoutes = require('./studentRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const courseRoutes = require('./courseRoutes');
 const universityRoutes = require('./universityRoutes');
+const fileRoutes = require('./fileRoutes');
 
 const API_PREFIX_V1 = '/api/v1';
 
@@ -22,4 +23,5 @@ module.exports = (app) => {
   app.use(`${API_PREFIX_V1}/notifications`, notificationRoutes);
   app.use(`${API_PREFIX_V1}/courses`, courseRoutes);
   app.use(`${API_PREFIX_V1}/universities`, universityRoutes);
+  app.use(`${API_PREFIX_V1}/file`, fileRoutes);
 };

@@ -52,7 +52,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,
       },
-      email: DataTypes.STRING,
+      email: {
+        type: DataTypes.STRING,
+        unique: true,
+      },
       password: DataTypes.STRING,
       role: DataTypes.ENUM(
         'super_admin',
@@ -66,7 +69,10 @@ module.exports = (sequelize, DataTypes) => {
       isProfileCreated: DataTypes.BOOLEAN,
       phone: DataTypes.STRING,
       signupLocation: DataTypes.STRING,
-      isActive: DataTypes.BOOLEAN,
+      isActive: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+      },
       notificationPreferences: {
         type: DataTypes.JSONB,
         allowNull: true,

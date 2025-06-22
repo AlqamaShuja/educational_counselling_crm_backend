@@ -8,6 +8,37 @@ router.use(protect, restrictTo('manager'));
 
 /**
  * @swagger
+ * /api/v1/manager/students:
+ *   get:
+ *     summary: Get students
+ *     tags: [Manager]
+ *     description: Retrieves students in the manager’s office.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Students retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                     format: uuid
+ *                   name:
+ *                     type: string
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/students', managerController.getStudents);
+
+/**
+ * @swagger
  * /api/v1/manager/leads:
  *   post:
  *     summary: Create a new lead
@@ -118,6 +149,78 @@ router.post('/leads', managerController.createLead);
  */
 router.get('/dashboard', managerController.getDashboard);
 
+// /**
+//  * @swagger
+//  * /api/v1/manager/staff/schedules:
+//  *   get:
+//  *     summary: Get staff schedules
+//  *     tags: [Manager]
+//  *     description: Retrieves appointment schedules for staff in the manager’s office.
+//  *     security:
+//  *       - BearerAuth: []
+//  *     responses:
+//  *       200:
+//  *         description: Staff schedules retrieved successfully
+//  *         content:
+//  *           application/json:
+//  *             schema:
+//  *               type: array
+//  *               items:
+//  *                 $ref: '#/components/schemas/Appointment'
+//  *       401:
+//  *         description: Unauthorized
+//  *       403:
+//  *         description: Forbidden
+//  */
+// router.get('/staff/schedules', managerController.getStaffSchedules);
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Appointment:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *           description: The unique identifier for the appointment
+ *         studentId:
+ *           type: string
+ *           format: uuid
+ *           description: The ID of the student
+ *         consultantId:
+ *           type: string
+ *           format: uuid
+ *           description: The ID of the consultant (staff)
+ *         officeId:
+ *           type: string
+ *           format: uuid
+ *           description: The ID of the office
+ *         dateTime:
+ *           type: string
+ *           format: date-time
+ *           description: The start time of the appointment
+ *         endTime:
+ *           type: string
+ *           format: date-time
+ *           description: The end time of the appointment
+ *         status:
+ *           type: string
+ *           enum: [scheduled, completed, canceled, no_show]
+ *           description: The status of the appointment
+ *         type:
+ *           type: string
+ *           enum: [in_person, virtual]
+ *           description: The type of appointment
+ *         notes:
+ *           type: string
+ *           description: Additional notes for the appointment
+ *         staffName:
+ *           type: string
+ *           description: The name of the consultant
+ */
+
 /**
  * @swagger
  * /api/v1/manager/staff/schedules:
@@ -142,6 +245,175 @@ router.get('/dashboard', managerController.getDashboard);
  *         description: Forbidden
  */
 router.get('/staff/schedules', managerController.getStaffSchedules);
+
+/**
+ * @swagger
+ * /api/v1/manager/staff/schedules:
+ *   post:
+ *     summary: Create a new staff schedule
+ *     tags: [Manager]
+ *     description: Creates a new appointment schedule for a staff member in the manager’s office.
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - studentId
+ *               - dateTime
+ *               - endTime
+ *               - type
+ *               - status
+ *             properties:
+ *               studentId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: The ID of the student
+ *               consultantId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: The ID of the consultant (staff)
+ *               dateTime:
+ *                 type: string
+ *                 format: date-time
+ *                 description: The start time of the appointment
+ *               endTime:
+ *                 type: string
+ *                 format: date-time
+ *                 description: The end time of the appointment
+ *               type:
+ *                 type: string
+ *                 enum: [in_person, virtual]
+ *                 description: The type of appointment
+ *               status:
+ *                 type: string
+ *                 enum: [scheduled, completed, canceled, no_show]
+ *                 description: The status of the appointment
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes for the appointment
+ *     responses:
+ *       201:
+ *         description: Schedule created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Appointment'
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.post('/staff/schedules', managerController.createStaffSchedule);
+
+/**
+ * @swagger
+ * /api/v1/manager/staff/schedules/{id}:
+ *   put:
+ *     summary: Update a staff schedule
+ *     tags: [Manager]
+ *     description: Updates an existing appointment schedule in the manager’s office.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The ID of the schedule to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - studentId
+ *               - dateTime
+ *               - endTime
+ *               - type
+ *               - status
+ *             properties:
+ *               studentId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: The ID of the student
+ *               consultantId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: The ID of the consultant (staff)
+ *               dateTime:
+ *                 type: string
+ *                 format: date-time
+ *                 description: The start time of the appointment
+ *               endTime:
+ *                 type: string
+ *                 format: date-time
+ *                 description: The end time of the appointment
+ *               type:
+ *                 type: string
+ *                 enum: [in_person, virtual]
+ *                 description: The type of appointment
+ *               status:
+ *                 type: string
+ *                 enum: [scheduled, completed, canceled, no_show]
+ *                 description: The status of the appointment
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes for the appointment
+ *     responses:
+ *       200:
+ *         description: Schedule updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Appointment'
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Schedule not found
+ */
+router.put('/staff/schedules/:id', managerController.updateStaffSchedule);
+
+/**
+ * @swagger
+ * /api/v1/manager/staff/schedules/{id}:
+ *   delete:
+ *     summary: Delete a staff schedule
+ *     tags: [Manager]
+ *     description: Deletes an appointment schedule in the manager’s office.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The ID of the schedule to delete
+ *     responses:
+ *       204:
+ *         description: Schedule deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Schedule not found
+ */
+router.delete('/staff/schedules/:id', managerController.deleteStaffSchedule);
 
 /**
  * @swagger
@@ -584,5 +856,77 @@ router.get('/leads/:id/progress', managerController.getLeadProgress);
  *         description: Unauthorized
  */
 router.get('/consultants', managerController.getOfficeConsultants);
+
+/**
+ * @swagger
+ * /api/v1/manager/staff:
+ *   post:
+ *     summary: Create a new consultant, receptionist, or student
+ *     tags: [Manager]
+ *     description: Creates a new user and assigns them to the manager's office. Consultants are also added to OfficeConsultants.
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - role
+ *               - name
+ *               - email
+ *               - phone
+ *               - password
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [consultant, receptionist, student]
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Staff member created and assigned to office
+ *       400:
+ *         description: Validation error or manager not assigned to office
+ *       500:
+ *         description: Server error
+ */
+router.post('/staff', managerController.createStaffMember);
+
+/**
+ * @swagger
+ * /api/v1/manager/staff/{id}:
+ *   delete:
+ *     summary: Disconnect a staff member from manager's office
+ *     tags: [Manager]
+ *     description: Removes a consultant from OfficeConsultants or unassigns any staff from manager's office without deleting the user.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID of the staff user to disconnect
+ *     responses:
+ *       200:
+ *         description: User disconnected from office
+ *       400:
+ *         description: Manager not assigned to an office
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.delete('/staff/:id', managerController.disconnectStaffMember);
 
 module.exports = router;

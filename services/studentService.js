@@ -5,6 +5,7 @@ const {
   Notification,
 } = require('../models');
 const AppError = require('../utils/appError');
+const path = require('path');
 
 const createProfile = async (
   userId,
@@ -58,8 +59,14 @@ const bookAppointment = async ({
   });
 };
 
-const uploadReviewDocuments = async (userId, { type, filePath }) => {
-  return Document.create({ userId, type, filePath, status: 'pending' });
+const uploadReviewDocuments = async (userId, { type, file }) => {
+  const filePath = `/uploads/leads/${file.filename}`;
+  return Document.create({
+    userId,
+    type,
+    filePath,
+    status: 'pending',
+  });
 };
 
 const getCommunicationHistory = async (userId) => {

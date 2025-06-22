@@ -273,7 +273,20 @@ const toggleOfficeStatus = async (req, res, next) => {
 const getAllOffices = async (req, res, next) => {
   try {
     const offices = await Office.findAll({
-      include: [{ model: User, as: 'manager' }],
+      include: [
+        {
+          model: User,
+          as: 'manager',
+        },
+        {
+          model: User,
+          as: 'consultants',
+          through: {
+            attributes: [], // This excludes the junction table attributes from the response
+          },
+          attributes: ['id', 'name', 'email', 'phone', 'role'], // Specify which consultant fields to include
+        },
+      ],
     });
     res.json(offices);
   } catch (error) {

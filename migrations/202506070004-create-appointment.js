@@ -34,6 +34,10 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: false,
       },
+      endTime: {
+        type: Sequelize.DATE,
+        allowNull: true,
+      },
       type: {
         type: Sequelize.ENUM('in_person', 'virtual'),
         allowNull: false,

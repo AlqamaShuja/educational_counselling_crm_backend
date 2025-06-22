@@ -38,7 +38,7 @@ module.exports = {
         defaultValue: true,
       },
       managerId: {
-        type: DataTypes.UUID,
+        type: Sequelize.UUID,
         allowNull: true,
         references: {
           model: 'Users',
@@ -46,12 +46,17 @@ module.exports = {
         },
       },
       consultantId: {
-        type: DataTypes.UUID,
+        type: Sequelize.UUID,
         allowNull: true,
         references: {
           model: 'Users',
           key: 'id',
         },
+      },
+      isBranch: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
       },
       createdAt: {
         allowNull: false,

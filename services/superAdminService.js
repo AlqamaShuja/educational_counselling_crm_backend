@@ -4,8 +4,8 @@ const pdfkit = require('pdfkit');
 const fs = require('fs');
 const AppError = require('../utils/appError');
 
-const createOffice = async ({ name, location, contactInfo, managerId }) => {
-  return Office.create({ name, location, contactInfo, managerId });
+const createOffice = async ({ name, location, contactInfo, managerId, ...rest }) => {
+  return Office.create({ name, location, contactInfo, managerId, ...rest });
 };
 
 const createStaff = async ({ email, role, officeId, name, phone }) => {

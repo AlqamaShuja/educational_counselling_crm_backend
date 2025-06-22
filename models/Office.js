@@ -82,6 +82,11 @@ module.exports = (sequelize, DataTypes) => {
           key: 'id',
         },
       },
+      isBranch: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
     },
     {
       sequelize,

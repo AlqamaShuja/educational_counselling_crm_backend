@@ -4,6 +4,7 @@ const consultantController = require('../controllers/consultantController');
 const { protect, restrictTo } = require('../middleware/authMiddleware');
 const { upload } = require('../middleware/multer');
 
+
 // Protect all routes and restrict to consultant role
 router.use(protect, restrictTo('consultant'));
 
@@ -82,6 +83,101 @@ router.use(protect, restrictTo('consultant'));
  *         description: Forbidden
  */
 router.get('/leads', consultantController.getAssignedLeads);
+
+/**
+ * @swagger
+ * /api/v1/consultant/leads/{id}/tasks:
+ *   get:
+ *     summary: Get tasks for a lead
+ *     tags: [Consultant]
+ *     description: Retrieves all tasks associated with a lead assigned to the consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Lead ID
+ *     responses:
+ *       200:
+ *         description: List of tasks
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                     format: uuid
+ *                   description:
+ *                     type: string
+ *                   dueDate:
+ *                     type: string
+ *                     format: date-time
+ *                   status:
+ *                     type: string
+ *                     enum: [pending, completed]
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Lead not found
+ */
+router.get('/leads/:id/tasks', consultantController.getLeadTasks);
+
+/**
+ * @swagger
+ * /api/v1/consultant/leads/{id}/documents:
+ *   get:
+ *     summary: Get documents for a lead
+ *     tags: [Consultant]
+ *     description: Retrieves all documents associated with a lead assigned to the consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Lead ID
+ *     responses:
+ *       200:
+ *         description: List of documents
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                     format: uuid
+ *                   type:
+ *                     type: string
+ *                   url:
+ *                     type: string
+ *                   notes:
+ *                     type: string
+ *                   uploadedAt:
+ *                     type: string
+ *                     format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Lead not found
+ */
+router.get('/leads/:id/documents', consultantController.getLeadDocuments);
 
 /**
  * @swagger

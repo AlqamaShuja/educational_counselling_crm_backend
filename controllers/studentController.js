@@ -11,6 +11,7 @@ const notificationService = require('../services/notificationService');
 const AppError = require('../utils/appError');
 const { VALID_TYPES } = require('../utils');
 const reportService = require('../services/reportService');
+const path = require('path');
 
 const createProfile = async (req, res) => {
   try {
@@ -368,23 +369,18 @@ const uploadReviewDocuments = async (req, res, next) => {
       throw new Error('File(s) required');
     }
 
-    // Handle different formats of types input
     if (!types) {
       throw new Error('Document type(s) required');
     }
 
-    // Convert types to array if it's not already
     if (typeof types === 'string') {
-      // Handle comma-separated string: "passport,transcript"
       types = types.includes(',')
         ? types.split(',').map((t) => t.trim())
-        : [types.trim()]; // Single type as string
+        : [types.trim()];
     } else if (!Array.isArray(types)) {
-      // Handle other non-array formats
       types = [types];
     }
 
-    // Ensure types is an array and has the correct length
     if (types.length !== files.length) {
       return res.status(400).json({
         error: `The number of types (${types.length}) must match the number of uploaded files (${files.length})`,
@@ -400,12 +396,15 @@ const uploadReviewDocuments = async (req, res, next) => {
 
     const documents = await Promise.all(
       files.map(async (file, index) => {
+        // Store filePath as /uploads/leads/${filename}
+        const filePath = `/uploads/leads/${file.filename}`;
+
         const document = await Document.create({
           userId,
           type: types[index],
-          filePath: file.path,
-          fileName: file.originalname, // Add this if you want to store original filename
-          fileSize: file.size, // Add this if you want to store file size
+          filePath,
+          fileName: file.originalname,
+          fileSize: file.size,
         });
 
         await Notification.create({
@@ -428,7 +427,6 @@ const uploadReviewDocuments = async (req, res, next) => {
           },
         });
 
-        // Notify assigned consultant (if any)
         const lead = await Lead.findOne({ where: { studentId: userId } });
         if (lead?.assignedConsultant) {
           await notificationService.sendNotification({

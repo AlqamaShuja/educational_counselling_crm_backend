@@ -1,4 +1,4 @@
-const { Report, Lead, Office, User, Appointment } = require('../models');
+const { Task, Report, Lead, Office, User, Appointment } = require('../models');
 const { createObjectCsvWriter } = require('csv-writer');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
@@ -246,19 +246,99 @@ const getManagerDashboard = async (officeId) => {
   };
 };
 
+// const getStaffPerformance = async (officeId) => {
+//   const officeWithConsultants = await Office.findOne({
+//     where: { id: officeId },
+//     include: [
+//       {
+//         model: User,
+//         as: 'consultants',
+//         where: { role: 'consultant' },
+//         through: { attributes: [] }, // omit junction table fields
+//         include: [
+//           {
+//             model: Lead,
+//             as: 'consultantLeads',
+//             required: false,
+//           },
+//         ],
+//       },
+//     ],
+//   });
+
+//   if (!officeWithConsultants) {
+//     return [];
+//   }
+
+//   return officeWithConsultants.consultants.map((consultant) => ({
+//     consultantId: consultant.id,
+//     name: consultant.name,
+//     totalLeads: consultant.consultantLeads.length,
+//     convertedLeads: consultant.consultantLeads.filter(
+//       (lead) => lead.status === 'converted'
+//     ).length,
+//   }));
+// };
+
+const { Op } = require('sequelize');
+const moment = require('moment'); // Optional, for date formatting or comparisons
+
 const getStaffPerformance = async (officeId) => {
-  const consultants = await User.findAll({
-    where: { officeId, role: 'consultant' },
-    include: [{ model: Lead, as: 'consultantLeads' }],
+  const officeWithConsultants = await Office.findOne({
+    where: { id: officeId },
+    include: [
+      {
+        model: User,
+        as: 'consultants',
+        where: { role: 'consultant' },
+        through: { attributes: [] },
+        include: [
+          {
+            model: Lead,
+            as: 'consultantLeads',
+            required: false,
+            include: [
+              {
+                model: Task,
+                as: 'tasks',
+                required: false,
+                where: {
+                  dueDate: {
+                    [Op.gte]: new Date(), // Only pending tasks
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
   });
-  return consultants.map((consultant) => ({
-    consultantId: consultant.id,
-    name: consultant.name,
-    totalLeads: consultant.consultantLeads.length,
-    convertedLeads: consultant.consultantLeads.filter(
+
+  if (!officeWithConsultants) {
+    return [];
+  }
+
+  return officeWithConsultants.consultants.map((consultant) => {
+    const allLeads = consultant.consultantLeads || [];
+
+    const totalLeads = allLeads.length;
+    const convertedLeads = allLeads.filter(
       (lead) => lead.status === 'converted'
-    ).length,
-  }));
+    ).length;
+
+    const pendingTasks = allLeads.reduce((total, lead) => {
+      return total + (lead.tasks?.length || 0);
+    }, 0);
+
+    return {
+      consultantId: consultant.id,
+      name: consultant.name,
+      totalLeads,
+      convertedLeads,
+      pendingTasks,
+    };
+  });
 };
 
 const generateApplicationSummary = async (profile) => {

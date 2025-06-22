@@ -5,11 +5,53 @@ const {
   Document,
   OfficeConsultant,
   User,
+  Task,
 } = require('../models');
 const leadService = require('../services/leadService');
 const notificationService = require('../services/notificationService');
 const AppError = require('../utils/appError');
 
+
+const getLeadDocuments = async (req, res, next) => {
+  try {
+    const lead = await Lead.findOne({
+      where: {
+        id: req.params.id,
+        assignedConsultant: req.user.id,
+      },
+      include: [{ model: User, as: 'student' }],
+    });
+    if (!lead) {
+      throw new AppError('Lead not found or not assigned to consultant', 404);
+    }
+    const documents = await Document.findAll({
+      where: { userId: lead.studentId },
+    });
+    res.status(200).json(documents);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getLeadTasks = async (req, res, next) => {
+  try {
+    const lead = await Lead.findOne({
+      where: {
+        id: req.params.id,
+        assignedConsultant: req.user.id,
+      },
+    });
+    if (!lead) {
+      throw new AppError('Lead not found or not assigned to consultant', 404);
+    }
+    const tasks = await Task.findAll({
+      where: { leadId: lead.id },
+    });
+    res.status(200).json(tasks);
+  } catch (error) {
+    next(error);
+  }
+};
 const getAssignedLeads = async (req, res, next) => {
   try {
     const leads = await Lead.findAll({
@@ -18,7 +60,7 @@ const getAssignedLeads = async (req, res, next) => {
         {
           model: User,
           as: 'student',
-          attributes: { exclude: ['password'] },
+          attributes: { exclude: ['password', 'ificationPreferences'] },
           include: [
             {
               model: StudentProfile,
@@ -157,7 +199,9 @@ const getStudentProfile = async (req, res, next) => {
       where: { studentId: id, assignedConsultant: req.user.id },
     });
     if (!lead) throw new Error('Student not found');
-    let profile = await StudentProfile.findByPk(lead.studentId);
+    let profile = await StudentProfile.findOne({ where: {
+      userId: lead.studentId,
+    } });
     if (!profile) {
       profile = await StudentProfile.create({
         userId: id,
@@ -445,7 +489,7 @@ const getApplicationProgress = async (req, res, next) => {
       where: { studentId: id, assignedConsultant: req.user.id },
     });
     if (!lead) throw new Error('Student not found');
-    const profile = await StudentProfile.findOne({ where: { userId: id, } });
+    const profile = await StudentProfile.findOne({ where: { userId: id } });
     res.json(profile.additionalInfo);
   } catch (error) {
     next(error);
@@ -471,4 +515,6 @@ module.exports = {
   setDeadlineReminder,
   updateApplicationStatus,
   getApplicationProgress,
+  getLeadTasks,
+  getLeadDocuments,
 };

@@ -1,11 +1,18 @@
-const { Notification, User, Appointment, Message, Document } = require('../models');
+const {
+  Notification,
+  User,
+  Appointment,
+  Message,
+  Document,
+} = require('../models');
 const nodemailer = require('nodemailer');
 const AppError = require('../utils/appError');
 const { Op } = require('sequelize');
 const { VALID_TYPES } = require('../utils');
+const path = require('path');
 
 const transporter = nodemailer.createTransport({
-  service: "Gmail",
+  service: 'Gmail',
   host: process.env.EMAIL_HOST,
   port: process.env.EMAIL_PORT,
   secure: true,
@@ -311,7 +318,7 @@ const sendReviewNotification = async (studentId, reviewData) => {
   }
 };
 
-const sendMessage = async ({ studentId, message, senderId, type="text", }) => {
+const sendMessage = async ({ studentId, message, senderId, type = 'text' }) => {
   if (!studentId || !message || !senderId) {
     throw new AppError('Student ID, message, and sender ID are required', 400);
   }
@@ -453,10 +460,12 @@ const trackDocumentSubmission = async (studentId, files, types, notes) => {
 
   const documents = [];
   for (let i = 0; i < files.length; i++) {
+    const filePath = `/uploads/leads/${files[i].filename}`;
+
     const document = await Document.create({
       userId: studentId,
       type: types[i],
-      filePath: files[i].path,
+      filePath,
       notes: notes[i] || null,
     });
 
@@ -538,10 +547,12 @@ const uploadLeadDocuments = async (leadId, studentId, files, types, notes) => {
 
   const documents = await Promise.all(
     files.map(async (file, index) => {
+      const filePath = `/uploads/leads/${file.filename}`;
+
       const document = await Document.create({
         userId: studentId,
         type: types[index],
-        filePath: file.path,
+        filePath,
         notes: notes[index] || null,
       });
 

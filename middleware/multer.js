@@ -1,4 +1,4 @@
-const uuidv4 = require('uuid').v4;
+const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -22,18 +22,32 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // Accept only image files
-  cb(null, true);
-  // if (file.mimetype.startsWith("image/")) {
-  // } else {
-  //   cb(new Error("Only image files are allowed") as any);
-  // }
+  // Accept images and common document types (e.g., PDF, PNG, JPEG, DOCX)
+  const allowedMimes = [
+    'image/jpeg',
+    'image/png',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(
+      new Error(
+        'Only images and documents (PDF, PNG, JPEG, DOC, DOCX) are allowed'
+      ),
+      false
+    );
+  }
 };
 
-exports.upload = multer({
+const upload = multer({
   storage,
   fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB
   },
 });
+
+module.exports = { upload, };
