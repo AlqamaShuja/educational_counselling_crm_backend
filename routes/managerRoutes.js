@@ -859,6 +859,64 @@ router.get('/consultants', managerController.getOfficeConsultants);
 
 /**
  * @swagger
+ * /api/v1/manager/receptionists:
+ *   get:
+ *     summary: Get all receptionists in manager's office
+ *     tags: [Manager]
+ *     description: Retrieves all active receptionists assigned to the manager's office.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of receptionists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 count:
+ *                   type: integer
+ *                   example: 3
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         format: uuid
+ *                       name:
+ *                         type: string
+ *                       email:
+ *                         type: string
+ *                       phone:
+ *                         type: string
+ *                       role:
+ *                         type: string
+ *                         example: consultant
+ *       400:
+ *         description: Manager not assigned to an office
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   example: Manager is not assigned to any office.
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/receptionists', managerController.getOfficeReceptionists);
+
+/**
+ * @swagger
  * /api/v1/manager/staff:
  *   post:
  *     summary: Create a new consultant, receptionist, or student

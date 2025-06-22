@@ -23,13 +23,13 @@ const createLead = async (req, res, next) => {
 
     if (!studentData || !studyPreferences) {
       return res.status(400).json({
-        error: 'Missing student data or study preferences or officeId',
+        error: 'Missing student data or study preferences',
       });
     }
 
     if (!req.user.officeId) {
       return res.status(400).json({
-        error: 'You are not assign to any Office, Please contact ADMIN',
+        error: 'You are not assigned to any office, please contact ADMIN',
       });
     }
 
@@ -44,7 +44,7 @@ const createLead = async (req, res, next) => {
       });
     }
 
-    // ✅ If a consultant is selected, ensure they are assigned to this office
+    // Validate assigned consultant
     if (assignedConsultant) {
       const consultantInOffice = await OfficeConsultant.findOne({
         where: {
@@ -83,11 +83,9 @@ const createLead = async (req, res, next) => {
       ],
     });
 
-    let stdProfile = await StudentProfile.create({
+    // Create minimal StudentProfile
+    await StudentProfile.create({
       userId: student.id,
-      personalInfo: {},
-      educationalBackground: {},
-      studyPreferences: {},
     });
 
     // Send notification if consultant is assigned
@@ -110,7 +108,6 @@ const createLead = async (req, res, next) => {
     next(error);
   }
 };
-
 const getDashboard = async (req, res, next) => {
   try {
     const metrics = await reportService.getManagerDashboard(req.user.officeId);
@@ -173,12 +170,20 @@ const createStaffSchedule = async (req, res, next) => {
       return res.status(403).json({ message: 'No office assigned to manager' });
     }
 
-    let { studentId, consultantId, staffId, startTime, endTime, type, status, notes } =
-      req.body;
+    let {
+      studentId,
+      consultantId,
+      staffId,
+      startTime,
+      endTime,
+      type,
+      status,
+      notes,
+    } = req.body;
 
-      if(!consultantId) {
-        consultantId = staffId;
-      }
+    if (!consultantId) {
+      consultantId = staffId;
+    }
 
     if (!studentId || !startTime || !type) {
       return res.status(400).json({
@@ -461,11 +466,29 @@ const getStaffReports = async (req, res, next) => {
 
 const getOfficeLeads = async (req, res, next) => {
   try {
+    if (!req.user.officeId) {
+      return res
+        .status(400)
+        .send({ error: 'Office not assign', message: 'Office not assign' });
+    }
     const leads = await Lead.findAll({
       where: { officeId: req.user.officeId },
       include: [
-        { model: User, as: 'student' },
-        { model: User, as: 'consultant' },
+        {
+          model: User,
+          as: 'student',
+          include: [
+            {
+              model: StudentProfile,
+              as: 'profile',
+            },
+          ],
+        },
+        {
+          model: User,
+          as: 'consultant',
+          attributes: ['id', 'name', 'email'],
+        },
       ],
     });
     res.json(leads);
@@ -719,6 +742,39 @@ const getOfficeConsultants = async (req, res, next) => {
   }
 };
 
+const getOfficeReceptionists = async (req, res, next) => {
+  try {
+    const managerId = req.user.id;
+
+    const office = await Office.findOne({
+      where: { managerId },
+    });
+
+    if (!office) {
+      return res.status(400).json({
+        success: false,
+        error: 'Manager is not assigned to any office.',
+      });
+    }
+
+    // Fetch consultants with lead and student details
+    const receptionists = await User.findAll({
+      where: { role: 'receptionist', officeId: office.id },
+      attributes: {
+        exclude: ['password'],
+      },
+    });
+
+    return res.json({
+      success: true,
+      count: receptionists.length,
+      data: receptionists,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const createStaffMember = async (req, res) => {
   try {
     const { id, role, name, email, phone, password } = req.body;
@@ -924,4 +980,5 @@ module.exports = {
   updateStaffSchedule,
   deleteStaffSchedule,
   getStudents,
+  getOfficeReceptionists,
 };
