@@ -28,9 +28,9 @@ const createProfile = async (req, res) => {
       additionalInfo,
     } = req.body;
     // Validate required fields for creation
-    if (!personalInfo) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
+    // if (!personalInfo) {
+    //   return res.status(400).json({ error: 'Missing required fields' });
+    // }
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized: User ID not found' });
     }
