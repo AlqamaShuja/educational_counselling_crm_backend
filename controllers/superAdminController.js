@@ -294,6 +294,59 @@ const getAllOffices = async (req, res, next) => {
   }
 };
 
+const getAllOfficeDetails = async (req, res, next) => {
+  try {
+    const offices = await Office.findOne({
+      where: { id: req.params.id, },
+      include: [
+        {
+          model: User,
+          as: 'manager',
+          attributes: ['id', 'name', 'email', 'phone', 'role'],
+        },
+        {
+          model: User,
+          as: 'consultants',
+          through: { attributes: [] },
+          attributes: ['id', 'name', 'email', 'phone', 'role'],
+        },
+        {
+          model: User,
+          // Get receptionists using officeId relationship, no alias
+          where: { role: 'receptionist' },
+          required: false,
+          attributes: ['id', 'name', 'email', 'phone', 'role'],
+        },
+        {
+          model: Lead,
+          include: [
+            {
+              model: User,
+              as: 'student',
+              attributes: ['id', 'name', 'email', 'phone', 'role'],
+              include: [
+                {
+                  model: StudentProfile,
+                  as: 'profile',
+                },
+              ],
+            },
+            {
+              model: User,
+              as: 'consultant', // This is the assignedConsultant
+              attributes: ['id', 'name', 'email', 'phone', 'role'],
+            },
+          ],
+        },
+      ],
+    });
+
+    res.json(offices);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getOfficePerformance = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -900,6 +953,7 @@ module.exports = {
   updateOffice,
   toggleOfficeStatus,
   getAllOffices,
+  getAllOfficeDetails,
   getOfficePerformance,
   createStaff,
   updateStaff,

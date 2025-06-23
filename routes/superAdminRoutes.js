@@ -418,6 +418,36 @@ router.get('/offices', superAdminController.getAllOffices);
 
 /**
  * @swagger
+ * /api/v1/super-admin/offices/{id}:
+ *   get:
+ *     summary: Get office by ID
+ *     tags: [SuperAdmin]
+ *     description: Retrieves the details of a specific office by ID.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the office
+ *     responses:
+ *       200:
+ *         description: Office details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Office'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/office/:id', superAdminController.getAllOfficeDetails);
+
+/**
+ * @swagger
  * /api/v1/super-admin/offices/{id}/performance:
  *   get:
  *     summary: Get office performance
