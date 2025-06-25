@@ -11,7 +11,6 @@ const leadService = require('../services/leadService');
 const notificationService = require('../services/notificationService');
 const AppError = require('../utils/appError');
 
-
 const getLeadDocuments = async (req, res, next) => {
   try {
     const lead = await Lead.findOne({
@@ -131,6 +130,90 @@ const addConsultationNotes = async (req, res, next) => {
   }
 };
 
+/**
+ * Converts nearly-any “array-like” value to a real array of trimmed strings.
+ * Returns [] for falsy/empty input.
+ */
+const toArray = (raw) => {
+  // Already an array?  Great – just clone to avoid mutating caller’s array.
+  if (Array.isArray(raw)) return [...raw];
+
+  // Nullish or empty string → empty array
+  if (!raw || (typeof raw === 'string' && raw.trim() === '')) return [];
+
+  let str = String(raw).trim();
+
+  // --- 1️⃣ Try regular JSON.parse (works for '["a","b"]') -------------
+  try {
+    const parsed = JSON.parse(str);
+    if (Array.isArray(parsed)) return parsed;
+  } catch (_) {
+    /* ignore */
+  }
+
+  // --- 2️⃣ Fix single quotes & try again ------------------------------
+  try {
+    const jsonFriendly = str
+      .replace(/^\s*'\[/, '[') // "'[" → "["
+      .replace(/\]\s*'$/, ']') // "]'" → "]"
+      .replace(/'/g, '"'); // all single → double quotes
+    const parsed = JSON.parse(jsonFriendly);
+    if (Array.isArray(parsed)) return parsed;
+  } catch (_) {
+    /* ignore */
+  }
+
+  // --- 3️⃣ Fallback: treat as comma-separated string -------------------
+  return str
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean); // remove empty segments
+};
+
+// const uploadLeadDocument = async (req, res, next) => {
+//   try {
+//     const { id } = req.params;
+//     const files = req.files;
+//     let { types, notes } = req.body;
+
+//     if (!files || files.length === 0) {
+//       throw new AppError('File(s) required', 400);
+//     }
+
+//     if (!Array.isArray(types)) {
+//       try {
+//         types = JSON.parse(types);
+//       } catch (error) {
+//         types = types.split(',');
+//       }
+//     }
+//     if (!Array.isArray(notes)) {
+//       try {
+//         types = JSON.parse(notes);
+//       } catch (error) {
+//         notes = notes.split(',');
+//       }
+//     }
+
+//     const lead = await Lead.findByPk(id);
+//     if (!lead || lead.assignedConsultant !== req.user.id) {
+//       throw new AppError('Lead not found or not assigned to you', 404);
+//     }
+
+//     const documents = await notificationService.uploadLeadDocuments(
+//       id,
+//       lead.studentId,
+//       files,
+//       types,
+//       notes
+//     );
+
+//     res.json(documents);
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 const uploadLeadDocument = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -141,12 +224,9 @@ const uploadLeadDocument = async (req, res, next) => {
       throw new AppError('File(s) required', 400);
     }
 
-    if (!Array.isArray(types)) {
-      types = types.split(',');
-    }
-    if (!Array.isArray(notes)) {
-      notes = notes.split(',');
-    }
+    // 🔄 Normalise both fields with one line each
+    types = toArray(types);
+    notes = toArray(notes);
 
     const lead = await Lead.findByPk(id);
     if (!lead || lead.assignedConsultant !== req.user.id) {
@@ -199,9 +279,11 @@ const getStudentProfile = async (req, res, next) => {
       where: { studentId: id, assignedConsultant: req.user.id },
     });
     if (!lead) throw new Error('Student not found');
-    let profile = await StudentProfile.findOne({ where: {
-      userId: lead.studentId,
-    } });
+    let profile = await StudentProfile.findOne({
+      where: {
+        userId: lead.studentId,
+      },
+    });
     if (!profile) {
       profile = await StudentProfile.create({
         userId: id,
