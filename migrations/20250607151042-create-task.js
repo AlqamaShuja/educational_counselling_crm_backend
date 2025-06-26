@@ -16,6 +16,15 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: false,
       },
+      notes: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      status: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        defaultValue: 'pending',
+      },
       dueDate: {
         type: Sequelize.DATE,
         allowNull: false,

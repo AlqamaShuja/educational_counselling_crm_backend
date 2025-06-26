@@ -208,6 +208,7 @@ const setFollowUpTask = async (leadId, taskData, userId) => {
     description: taskData.description,
     dueDate,
     createdBy: userId,
+    status: taskData.status || 'pending',
   });
 };
 

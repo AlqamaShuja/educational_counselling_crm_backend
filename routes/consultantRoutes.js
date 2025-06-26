@@ -4,7 +4,6 @@ const consultantController = require('../controllers/consultantController');
 const { protect, restrictTo } = require('../middleware/authMiddleware');
 const { upload } = require('../middleware/multer');
 
-
 // Protect all routes and restrict to consultant role
 router.use(protect, restrictTo('consultant'));
 
@@ -133,6 +132,183 @@ router.get('/leads/:id/tasks', consultantController.getLeadTasks);
 
 /**
  * @swagger
+ * /api/v1/consultant/tasks:
+ *   get:
+ *     summary: Get all tasks for leads assigned to the consultant
+ *     tags: [Consultant]
+ *     description: Retrieves all tasks associated with all leads assigned to the authenticated consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of tasks for all assigned leads
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                     format: uuid
+ *                     description: Task ID
+ *                   description:
+ *                     type: string
+ *                     description: Task description
+ *                   dueDate:
+ *                     type: string
+ *                     format: date-time
+ *                     description: Task due date
+ *                   status:
+ *                     type: string
+ *                     enum: [pending, completed]
+ *                     description: Task status
+ *                   leadId:
+ *                     type: string
+ *                     format: uuid
+ *                     description: ID of the associated lead
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ *       403:
+ *         description: Forbidden - User is not a consultant
+ *       404:
+ *         description: No leads assigned to consultant
+ */
+router.get('/tasks', consultantController.getAllLeadTasks);
+
+/**
+ * @swagger
+ * /api/v1/consultant/tasks/{id}:
+ *   put:
+ *     summary: Update a task and notify the lead
+ *     tags: [Consultant]
+ *     description: Updates a task associated with a lead assigned to the authenticated consultant and notifies the lead (student) via in-app notification and/or email based on their preferences.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID of the task to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - description
+ *               - dueDate
+ *               - status
+ *               - leadId
+ *             properties:
+ *               description:
+ *                 type: string
+ *                 description: Task description
+ *                 example: Follow up with student
+ *               dueDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Task due date
+ *                 example: 2025-07-01T10:00:00.000Z
+ *               status:
+ *                 type: string
+ *                 enum: [pending, in_progress, completed, cancelled]
+ *                 description: Task status
+ *                 example: pending
+ *               leadId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID of the associated lead
+ *                 example: 123e4567-e89b-12d3-a456-426614174000
+ *               notes:
+ *                 type: string
+ *                 description: Additional notes for the task
+ *                 example: Discuss study preferences
+ *     responses:
+ *       200:
+ *         description: Task updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                   format: uuid
+ *                 description:
+ *                   type: string
+ *                 dueDate:
+ *                   type: string
+ *                   format: date-time
+ *                 status:
+ *                   type: string
+ *                   enum: [pending, in_progress, completed, cancelled]
+ *                 leadId:
+ *                   type: string
+ *                   format: uuid
+ *                 notes:
+ *                   type: string
+ *                 createdAt:
+ *                   type: string
+ *                   format: date-time
+ *                 updatedAt:
+ *                   type: string
+ *                   format: date-time
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ *       403:
+ *         description: Forbidden - User is not a consultant
+ *       404:
+ *         description: Task not found, lead not found, or not associated with consultant’s lead
+ */
+router.put('/tasks/:id', consultantController.editLeadTask);
+
+/**
+ * @swagger
+ * /api/v1/consultant/tasks/{id}:
+ *   delete:
+ *     summary: Delete a task and notify the lead
+ *     tags: [Consultant]
+ *     description: Deletes a task associated with a lead assigned to the authenticated consultant and notifies the lead (student) via in-app notification and/or email based on their preferences.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID of the task to delete
+ *     responses:
+ *       200:
+ *         description: Task deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Task deleted successfully
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ *       403:
+ *         description: Forbidden - User is not a consultant
+ *       404:
+ *         description: Task not found, student not found, or not associated with consultant’s lead
+ */
+router.delete('/tasks/:id', consultantController.deleteLeadTask);
+
+/**
+ * @swagger
  * /api/v1/consultant/leads/{id}/documents:
  *   get:
  *     summary: Get documents for a lead
@@ -178,6 +354,49 @@ router.get('/leads/:id/tasks', consultantController.getLeadTasks);
  *         description: Lead not found
  */
 router.get('/leads/:id/documents', consultantController.getLeadDocuments);
+
+/**
+ * @swagger
+ * /api/v1/consultant/documents/{id}/status:
+ *   put:
+ *     summary: Update document status
+ *     tags: [Consultant]
+ *     description: Updates the status of a document (pending, approved, rejected).
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Document ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [pending, approved, rejected]
+ *                 example: approved
+ *               notes:
+ *                 type: string
+ *                 example: Document is valid and approved
+ *     responses:
+ *       200:
+ *         description: Document status updated successfully
+ *       404:
+ *         description: Document not found
+ *       403:
+ *         description: Unauthorized to update this document
+ */
+router.put('/documents/:id/status', consultantController.updateDocumentStatus);
 
 /**
  * @swagger
@@ -623,6 +842,89 @@ router.post('/students/:id/messages', consultantController.sendMessage);
  *         description: Student not found
  */
 router.post('/students/:id/meetings', consultantController.scheduleMeeting);
+
+/**
+ * @swagger
+ * /api/v1/consultant/appointments/{id}:
+ *   put:
+ *     summary: Update appointment
+ *     tags: [Consultant]
+ *     description: Updates an existing appointment.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Appointment ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               dateTime:
+ *                 type: string
+ *                 format: date-time
+ *               type:
+ *                 type: string
+ *                 enum: [in_person, virtual]
+ *               status:
+ *                 type: string
+ *                 enum: [scheduled, completed, cancelled, no_show]
+ *               notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Appointment updated successfully
+ *       404:
+ *         description: Appointment not found
+ */
+router.put('/appointments/:id', consultantController.updateAppointment);
+
+/**
+ * @swagger
+ * /api/v1/consultant/appointments/{id}:
+ *   delete:
+ *     summary: Delete appointment
+ *     tags: [Consultant]
+ *     description: Deletes an appointment.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Appointment ID
+ *     responses:
+ *       200:
+ *         description: Appointment deleted successfully
+ *       404:
+ *         description: Appointment not found
+ */
+router.delete('/appointments/:id', consultantController.deleteAppointment);
+
+/**
+ * @swagger
+ * /api/v1/consultant/appointments:
+ *   get:
+ *     summary: Get consultant appointments
+ *     tags: [Consultant]
+ *     description: Retrieves all appointments for the consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of appointments
+ */
+router.get('/appointments', consultantController.getAppointments);
 
 /**
  * @swagger

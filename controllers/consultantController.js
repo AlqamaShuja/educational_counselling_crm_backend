@@ -6,6 +6,7 @@ const {
   OfficeConsultant,
   User,
   Task,
+  sequelize,
 } = require('../models');
 const leadService = require('../services/leadService');
 const notificationService = require('../services/notificationService');
@@ -51,6 +52,211 @@ const getLeadTasks = async (req, res, next) => {
     next(error);
   }
 };
+
+const getAllLeadTasks = async (req, res, next) => {
+  try {
+    // Find all leads assigned to the consultant
+    const leads = await Lead.findAll({
+      where: {
+        assignedConsultant: req.user.id,
+      },
+      attributes: ['id'], // Only need lead IDs for task filtering
+    });
+
+    if (leads.length === 0) {
+      throw new AppError('No leads assigned to consultant', 404);
+    }
+
+    // Extract lead IDs
+    const leadIds = leads.map((lead) => lead.id);
+
+    // Fetch all tasks for the leads
+    const tasks = await Task.findAll({
+      where: { leadId: leadIds },
+      order: [['createdAt', 'DESC']],
+      // include: [
+      //   {
+      //     model: Lead,
+      //     as: 'lead',
+      //     attributes: [],
+      //     include: [{ model: User, as: 'student', attributes: ['name', 'email', 'phone'] }],
+      //   },
+      // ],
+    });
+
+    res.status(200).json(tasks);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const editLeadTask = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id: taskId } = req.params;
+    const { description, dueDate, status, leadId, notes } = req.body;
+
+    // Validate input
+    if (!description || !dueDate || !status || !leadId) {
+      throw new AppError(
+        'Description, due date, status, and lead ID are required',
+        400
+      );
+    }
+
+    if (
+      !['pending', 'in_progress', 'completed', 'cancelled'].includes(status)
+    ) {
+      throw new AppError('Invalid status value', 400);
+    }
+
+    // Find the task and include the associated lead
+    const task = await Task.findOne({
+      where: { id: taskId },
+      // include: [
+      //   {
+      //     model: Lead,
+      //     as: 'lead',
+      //     where: { assignedConsultant: req.user.id },
+      //     attributes: ['id', 'studentId'],
+      //   },
+      // ],
+      transaction,
+    });
+
+    if (!task) {
+      throw new AppError(
+        'Task not found or not associated with consultant’s lead',
+        404
+      );
+    }
+
+    // Verify the lead exists and matches
+    const lead = await Lead.findOne({
+      where: { id: leadId, assignedConsultant: req.user.id },
+      attributes: ['id', 'studentId'],
+      transaction,
+    });
+
+    if (!lead) {
+      throw new AppError('Lead not found or not assigned to consultant', 404);
+    }
+
+    // Get the student
+    const student = await User.findByPk(lead.studentId, { transaction });
+    if (!student) {
+      throw new AppError('Student not found', 404);
+    }
+
+    // Update the task
+    await task.update(
+      {
+        description,
+        dueDate: new Date(dueDate),
+        status,
+        leadId,
+        notes,
+        updatedBy: req.user.id,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    // Notify the student
+    const preferences = student.notificationPreferences || {
+      email: true,
+      sms: true,
+      in_app: true,
+    };
+
+    const notificationMessage = `Task "${description}" has been updated by your consultant.`;
+
+    if (preferences.in_app) {
+      await notificationService.sendNotification(
+        {
+          userId: student.id,
+          type: 'in_app',
+          message: notificationMessage,
+          details: { taskId, leadId },
+        }
+      );
+    }
+
+    res.status(200).json(task);
+  } catch (error) {
+    await transaction.rollback();
+    next(error);
+  }
+};
+
+const deleteLeadTask = async (req, res, next) => {
+  try {
+    const { id: taskId } = req.params;
+
+    // Find the task and include the associated lead
+    const task = await Task.findOne({
+      where: { id: taskId },
+      // include: [
+      //   {
+      //     model: Lead,
+      //     as: 'lead',
+      //     where: { assignedConsultant: req.user.id }, // Ensure lead is assigned to consultant
+      //     attributes: ['id', 'studentId'],
+      //   },
+      // ],
+    });
+
+    if (!task) {
+      throw new AppError(
+        'Task not found or not associated with consultant’s lead',
+        404
+      );
+    }
+
+    // Get the student (lead's associated user)
+    const student = await User.findByPk(task.lead.studentId);
+    if (!student) {
+      throw new AppError('Student not found', 404);
+    }
+
+    // Delete the task
+    await task.destroy();
+
+    // Notify the student
+    const preferences = student.notificationPreferences || {
+      email: true,
+      sms: true,
+      in_app: true,
+    };
+
+    const notificationMessage = `Task *${task.description}* has been deleted by your consultant.`;
+
+    if (preferences.in_app) {
+      await notificationService.sendNotification({
+        userId: student.id,
+        type: 'in_app',
+        message: notificationMessage,
+        taskDescription: task.description,
+        details: { taskId, leadId: task.lead.id },
+      });
+    }
+
+    if (preferences.email) {
+      await sendNotification({
+        userId: student.id,
+        type: 'email',
+        message: notificationMessage,
+        details: { taskId, leadId: task.lead.id },
+      });
+    }
+
+    res.status(200).json({ message: 'Task deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAssignedLeads = async (req, res, next) => {
   try {
     const leads = await Lead.findAll({
@@ -578,6 +784,157 @@ const getApplicationProgress = async (req, res, next) => {
   }
 };
 
+const updateAppointment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { dateTime, type, status, notes } = req.body;
+
+    const appointment = await Appointment.findByPk(id);
+    if (!appointment) {
+      throw new AppError('Appointment not found', 404);
+    }
+
+    // Verify this appointment belongs to the consultant
+    if (appointment.consultantId !== req.user.id) {
+      throw new AppError('Unauthorized to update this appointment', 403);
+    }
+
+    // Update appointment
+    await appointment.update({
+      dateTime: dateTime || appointment.dateTime,
+      type: type || appointment.type,
+      status: status || appointment.status,
+      notes: notes !== undefined ? notes : appointment.notes,
+    });
+
+    // Send notification to student about the update
+    await notificationService.sendNotification({
+      userId: appointment.studentId,
+      type: 'in_app',
+      message: `Your appointment has been updated.`,
+      details: {
+        appointmentId: appointment.id,
+        updatedBy: req.user.id,
+        newDateTime: appointment.dateTime,
+      },
+    });
+
+    res.json(appointment);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteAppointment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const appointment = await Appointment.findByPk(id);
+    if (!appointment) {
+      throw new AppError('Appointment not found', 404);
+    }
+
+    // Verify this appointment belongs to the consultant
+    if (appointment.consultantId !== req.user.id) {
+      throw new AppError('Unauthorized to delete this appointment', 403);
+    }
+
+    // Send notification to student about cancellation
+    await notificationService.sendNotification({
+      userId: appointment.studentId,
+      type: 'in_app',
+      message: `Your appointment has been cancelled.`,
+      details: {
+        appointmentId: appointment.id,
+        cancelledBy: req.user.id,
+        originalDateTime: appointment.dateTime,
+      },
+    });
+
+    await appointment.destroy();
+
+    res.json({ message: 'Appointment deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getAppointments = async (req, res, next) => {
+  try {
+    const appointments = await Appointment.findAll({
+      where: { consultantId: req.user.id },
+      include: [
+        {
+          model: User,
+          as: 'student',
+          attributes: { exclude: ['password'] },
+        },
+      ],
+      order: [['dateTime', 'ASC']],
+    });
+
+    res.json(appointments);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateDocumentStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+
+    // Find the document and verify it belongs to a student assigned to this consultant
+    const document = await Document.findOne({
+      where: { id },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          include: [
+            {
+              model: Lead,
+              as: 'studentLeads',
+              where: { assignedConsultant: req.user.id },
+              required: true,
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!document) {
+      throw new AppError('Document not found or not authorized to update', 404);
+    }
+
+    // Update document status
+    await document.update({
+      status,
+      notes: notes || document.notes,
+    });
+
+    // Send notification to student
+    await notificationService.sendNotification({
+      userId: document.userId,
+      type: 'in_app',
+      message: `Your document "${document.type}" status has been updated to: ${status}`,
+      details: {
+        documentId: document.id,
+        status,
+        notes,
+        updatedBy: req.user.id,
+      },
+    });
+
+    res.json({
+      message: 'Document status updated successfully',
+      document,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAssignedLeads,
   updateLeadStatus,
@@ -599,4 +956,11 @@ module.exports = {
   getApplicationProgress,
   getLeadTasks,
   getLeadDocuments,
+  updateAppointment,
+  deleteAppointment,
+  getAppointments,
+  updateDocumentStatus,
+  getAllLeadTasks,
+  deleteLeadTask,
+  editLeadTask,
 };
