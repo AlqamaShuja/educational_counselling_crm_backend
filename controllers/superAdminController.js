@@ -54,11 +54,68 @@ const getAllStudents = async (req, res, next) => {
   }
 };
 
+const getPendingUsers = async (req, res, next) => {
+  try {
+    const pendingUsers = await User.findAll({
+      where: {
+        status: 'pending',
+        role: {
+          [Op.ne]: 'student',
+        },
+      },
+      attributes: { exclude: ['password'] },
+      include: [
+        {
+          model: Office,
+          as: 'office',
+          required: false,
+        },
+      ],
+    });
+
+    res.json(pendingUsers);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateUserStatus = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    let { status } = req.body;
+
+    status = status.toLowerCase();
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status value' });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    await user.update({ status });
+
+    // Notify user about their status update
+    // await notificationService.sendNotification({
+    //   userId: user.id,
+    //   type: 'status_update',
+    //   message: `Your account has been ${status}`,
+    //   data: { status }
+    // });
+
+    res.json({ message: 'User status updated successfully', user });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAllStaff = async (req, res, next) => {
   try {
     const staff = await User.findAll({
       where: {
-        role: { [Op.not]: 'student' },
+        role: { [Op.not]: ['student', 'super_admin'] },
       },
       attributes: {
         exclude: ['password'],
@@ -78,6 +135,7 @@ const getAllStaff = async (req, res, next) => {
           required: false,
         },
       ],
+      order: [['updatedAt', 'DESC']],
     });
 
     res.json(staff);
@@ -297,7 +355,7 @@ const getAllOffices = async (req, res, next) => {
 const getAllOfficeDetails = async (req, res, next) => {
   try {
     const offices = await Office.findOne({
-      where: { id: req.params.id, },
+      where: { id: req.params.id },
       include: [
         {
           model: User,
@@ -949,6 +1007,8 @@ const getDashboardStats = async (req, res, next) => {
 module.exports = {
   getAllStudents,
   getAllStaff,
+  getPendingUsers,
+  updateUserStatus,
   createOffice,
   updateOffice,
   toggleOfficeStatus,

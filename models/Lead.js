@@ -60,8 +60,15 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
       status: {
-        type: DataTypes.ENUM('new', 'in_progress', 'converted', 'lost'),
-        defaultValue: 'new',
+        type: DataTypes.STRING,
+        defaultValue: 'lead',
+        allowNull: false,
+        // Recommended values: lead, opportunity, project, done
+      },
+      parked: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        allowNull: false,
       },
       source: {
         type: DataTypes.ENUM('walk_in', 'online', 'referral', 'Google OAuth', 'Facebook OAuth'),

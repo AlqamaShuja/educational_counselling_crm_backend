@@ -101,6 +101,56 @@ router.get('/students', superAdminController.getAllStudents);
 
 /**
  * @swagger
+ * /api/v1/super-admin/pending-users:
+ *   get:
+ *     summary: Get all pending users
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - BearerAuth: []
+ *     description: Fetch all users with pending status.
+ *     responses:
+ *       200:
+ *         description: List of pending users
+ */
+router.get('/pending-users', superAdminController.getPendingUsers);
+
+/**
+ * @swagger
+ * /api/v1/super-admin/users/{userId}/status:
+ *   patch:
+ *     summary: Update user status
+ *     tags: [SuperAdmin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [approved, rejected]
+ *     responses:
+ *       200:
+ *         description: User status updated successfully
+ *       400:
+ *         description: Invalid status value
+ *       404:
+ *         description: User not found
+ */
+router.patch('/users/:userId/status', superAdminController.updateUserStatus);
+
+/**
+ * @swagger
  * /api/v1/super-admin/staff:
  *   get:
  *     summary: Get all staff (non-student)
