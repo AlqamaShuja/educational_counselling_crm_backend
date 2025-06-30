@@ -42,6 +42,18 @@ module.exports = (sequelize, DataTypes) => {
         as: 'consultantOffices',
         foreignKey: 'userId',
       });
+
+      // User (Student) has many Proposals
+      this.hasMany(models.Proposal, {
+        foreignKey: 'studentId',
+        as: 'studentProposals',
+      });
+
+      // User (Consultant) has many Proposals
+      this.hasMany(models.Proposal, {
+        foreignKey: 'consultantId',
+        as: 'consultantProposals',
+      });
     }
   }
   User.init(

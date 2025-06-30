@@ -935,6 +935,58 @@ const updateDocumentStatus = async (req, res, next) => {
   }
 };
 
+// Add this new function to your existing consultantController.js
+
+const updateLeadParkedStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { parked } = req.body;
+
+    // Validate parked value
+    if (typeof parked !== 'boolean') {
+      throw new AppError('Parked status must be a boolean value', 400);
+    }
+
+    const lead = await Lead.findByPk(id);
+    if (!lead || lead.assignedConsultant !== req.user.id) {
+      throw new AppError('Lead not found or not assigned to you', 404);
+    }
+
+    // Update the parked status
+    await lead.update({ parked });
+
+    // Log in lead history
+    const history = [
+      ...lead.history,
+      {
+        note: `Lead ${parked ? 'parked' : 'unparked'} by consultant`,
+        timestamp: new Date(),
+        userId: req.user.id,
+      },
+    ];
+    await lead.update({ history });
+
+    // Send notification to student
+    await notificationService.sendNotification({
+      userId: lead.studentId,
+      type: 'in_app',
+      message: `Your lead has been ${parked ? 'parked' : 'activated'} by your consultant.`,
+      details: {
+        leadId: lead.id,
+        parked,
+        consultantId: req.user.id,
+      },
+    });
+
+    res.json({
+      message: `Lead ${parked ? 'parked' : 'unparked'} successfully`,
+      lead,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAssignedLeads,
   updateLeadStatus,
@@ -963,4 +1015,5 @@ module.exports = {
   getAllLeadTasks,
   deleteLeadTask,
   editLeadTask,
+  updateLeadParkedStatus,
 };

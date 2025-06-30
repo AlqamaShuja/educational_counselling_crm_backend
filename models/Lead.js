@@ -25,6 +25,14 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'leadId',
         as: 'tasks',
       });
+
+      // Lead has many Proposals
+      Lead.hasMany(models.Proposal, {
+        foreignKey: 'leadId',
+        as: 'proposals',
+      });
+
+      //
     }
   }
 
@@ -71,7 +79,13 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       source: {
-        type: DataTypes.ENUM('walk_in', 'online', 'referral', 'Google OAuth', 'Facebook OAuth'),
+        type: DataTypes.ENUM(
+          'walk_in',
+          'online',
+          'referral',
+          'Google OAuth',
+          'Facebook OAuth'
+        ),
         allowNull: false,
       },
       studyPreferences: {

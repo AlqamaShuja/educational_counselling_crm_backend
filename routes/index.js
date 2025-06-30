@@ -10,6 +10,7 @@ const notificationRoutes = require('./notificationRoutes');
 const courseRoutes = require('./courseRoutes');
 const universityRoutes = require('./universityRoutes');
 const fileRoutes = require('./fileRoutes');
+const proposalRoutes = require('./proposalRoutes');
 
 // New messaging routes
 const messageRoutes = require('./messageRoutes');
@@ -26,6 +27,7 @@ module.exports = (app) => {
   app.use(`${API_PREFIX_V1}/manager`, managerRoutes);
   app.use(`${API_PREFIX_V1}/receptionist`, receptionistRoutes);
   app.use(`${API_PREFIX_V1}/consultant`, consultantRoutes);
+  app.use(`${API_PREFIX_V1}/consultant`, proposalRoutes);
   app.use(`${API_PREFIX_V1}/student`, studentRoutes);
 
   // General routes

@@ -1355,4 +1355,74 @@ router.get(
   consultantController.getApplicationProgress
 );
 
+/**
+ * @swagger
+ * /api/v1/consultant/leads/{id}/parked:
+ *   put:
+ *     summary: Update lead parked status
+ *     tags: [Consultant]
+ *     description: Updates the parked status of a lead assigned to the consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Lead ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - parked
+ *             properties:
+ *               parked:
+ *                 type: boolean
+ *                 example: true
+ *                 description: Whether to park (true) or unpark (false) the lead
+ *     responses:
+ *       200:
+ *         description: Lead parked status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Lead parked successfully
+ *                 lead:
+ *                   $ref: '#/components/schemas/Lead'
+ *       400:
+ *         description: Invalid parked status value
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Parked status must be a boolean value
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Lead not found or not assigned to consultant
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Lead not found or not assigned to you
+ */
+router.put('/leads/:id/parked', consultantController.updateLeadParkedStatus);
+
 module.exports = router;

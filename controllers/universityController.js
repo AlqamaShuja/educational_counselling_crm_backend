@@ -49,7 +49,7 @@ const updateUniversity = async (req, res, next) => {
     if (!university)
       return res.status(404).json({ error: 'University not found' });
 
-    const { name, country, city, website, mouStatus, details } = req.body;
+    const { name, country, city, website, mouStatus, details, ...rest } = req.body;
 
     await university.update({
       name,
@@ -58,6 +58,7 @@ const updateUniversity = async (req, res, next) => {
       website,
       mouStatus,
       details: details || {},
+      ...rest,
     });
 
     res.json(university);

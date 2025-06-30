@@ -641,4 +641,191 @@ router.get('/documents/status', studentController.getDocumentStatus);
  */
 router.get('/summaries', studentController.downloadApplicationSummary);
 
+/**
+ * @swagger
+ * /api/v1/student/proposals:
+ *   get:
+ *     summary: Get all proposals received by student
+ *     tags: [Student - Proposals]
+ *     description: Retrieves all proposals sent to the authenticated student.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, approved, rejected]
+ *         description: Filter proposals by status
+ *     responses:
+ *       200:
+ *         description: Proposals retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Proposals retrieved successfully
+ *                 count:
+ *                   type: integer
+ *                   example: 3
+ *                 proposals:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Proposal'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.get('/proposals', studentController.getMyProposals);
+/**
+ * @swagger
+ * /api/v1/student/proposals/{id}:
+ *   get:
+ *     summary: Get proposal details
+ *     tags: [Student - Proposals]
+ *     description: Retrieves details of a specific proposal sent to the student.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Proposal ID
+ *     responses:
+ *       200:
+ *         description: Proposal retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Proposal retrieved successfully
+ *                 proposal:
+ *                   $ref: '#/components/schemas/Proposal'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Proposal not found
+ */
+router.get('/proposals/:id', studentController.getProposalById);
+/**
+ * @swagger
+ * /api/v1/student/proposals/{id}/approve:
+ *   patch:
+ *     summary: Approve a proposal
+ *     tags: [Student - Proposals]
+ *     description: Approves a proposal sent by the consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Proposal ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               feedback:
+ *                 type: string
+ *                 example: I'm excited to proceed with this proposal!
+ *     responses:
+ *       200:
+ *         description: Proposal approved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Proposal approved successfully
+ *                 proposal:
+ *                   $ref: '#/components/schemas/Proposal'
+ *       400:
+ *         description: Proposal cannot be approved (already processed)
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Proposal not found
+ */
+router.patch(
+  '/proposals/:id/approve',
+  studentController.approveProposal
+);
+/**
+ * @swagger
+ * /api/v1/student/proposals/{id}/reject:
+ *   patch:
+ *     summary: Reject a proposal
+ *     tags: [Student - Proposals]
+ *     description: Rejects a proposal sent by the consultant.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Proposal ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - rejectionReason
+ *             properties:
+ *               rejectionReason:
+ *                 type: string
+ *                 example: The proposed university doesn't match my preferences
+ *               feedback:
+ *                 type: string
+ *                 example: I would prefer a different location for my studies
+ *     responses:
+ *       200:
+ *         description: Proposal rejected successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Proposal rejected successfully
+ *                 proposal:
+ *                   $ref: '#/components/schemas/Proposal'
+ *       400:
+ *         description: Proposal cannot be rejected (already processed) or missing rejection reason
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Proposal not found
+ */
+router.patch('/proposals/:id/reject', studentController.rejectProposal);
+
 module.exports = router;

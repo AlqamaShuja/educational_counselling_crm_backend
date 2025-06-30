@@ -5,6 +5,7 @@ const {
   Lead,
   Office,
   User,
+  Proposal,
   Notification,
 } = require('../models');
 const notificationService = require('../services/notificationService');
@@ -575,6 +576,193 @@ const downloadApplicationSummary = async (req, res, next) => {
   }
 };
 
+
+// Proposal
+// Get all proposals received by the student
+const getMyProposals = async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    const where = { studentId: req.user.id };
+    if (status) {
+      where.status = status;
+    }
+    const proposals = await Proposal.findAll({
+      where,
+      include: [
+        {
+          model: User,
+          as: 'consultant',
+          attributes: ['id', 'name', 'email', 'phone'],
+        },
+        {
+          model: Lead,
+          as: 'lead',
+          attributes: ['id', 'status', 'source', 'studyPreferences'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+    res.json({
+      message: 'Proposals retrieved successfully',
+      count: proposals.length,
+      proposals,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+// Get a specific proposal by ID
+const getProposalById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const proposal = await Proposal.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: 'consultant',
+          attributes: ['id', 'name', 'email', 'phone'],
+        },
+        {
+          model: Lead,
+          as: 'lead',
+          attributes: ['id', 'status', 'source', 'studyPreferences'],
+        },
+      ],
+    });
+    if (!proposal || proposal.studentId !== req.user.id) {
+      throw new AppError('Proposal not found', 404);
+    }
+    res.json({
+      message: 'Proposal retrieved successfully',
+      proposal,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+// Approve a proposal
+const approveProposal = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { feedback } = req.body;
+    const proposal = await Proposal.findByPk(id);
+    if (!proposal || proposal.studentId !== req.user.id) {
+      throw new AppError('Proposal not found', 404);
+    }
+    if (proposal.status !== 'pending') {
+      throw new AppError('Proposal has already been processed', 400);
+    }
+    // Update proposal status
+    await proposal.update({
+      status: 'approved',
+      approvedAt: new Date(),
+      details: {
+        ...proposal.details,
+        studentFeedback: feedback,
+        approvedBy: req.user.id,
+      },
+    });
+    // Update lead history
+    const lead = await Lead.findByPk(proposal.leadId);
+    if (lead) {
+      const history = [
+        ...lead.history,
+        {
+          note: `Proposal "${proposal.title}" approved by student`,
+          timestamp: new Date(),
+          userId: req.user.id,
+          feedback: feedback || null,
+        },
+      ];
+      await lead.update({
+        history,
+        status: 'opportunity' // Move lead to converted status
+      });
+    }
+    // Notify consultant
+    await notificationService.sendNotification({
+      userId: proposal.consultantId,
+      type: 'in_app',
+      message: `Your proposal "${proposal.title}" has been approved by the student!`,
+      details: {
+        proposalId: proposal.id,
+        studentId: req.user.id,
+        feedback: feedback || null,
+        approvedAt: new Date(),
+      },
+    });
+    res.json({
+      message: 'Proposal approved successfully',
+      proposal,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+// Reject a proposal
+const rejectProposal = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rejectionReason, feedback } = req.body;
+    if (!rejectionReason) {
+      throw new AppError('Rejection reason is required', 400);
+    }
+    const proposal = await Proposal.findByPk(id);
+    if (!proposal || proposal.studentId !== req.user.id) {
+      throw new AppError('Proposal not found', 404);
+    }
+    if (proposal.status !== 'pending') {
+      throw new AppError('Proposal has already been processed', 400);
+    }
+    // Update proposal status
+    await proposal.update({
+      status: 'rejected',
+      rejectedAt: new Date(),
+      rejectionReason,
+      details: {
+        ...proposal.details,
+        studentFeedback: feedback,
+        rejectedBy: req.user.id,
+      },
+    });
+    // Update lead history
+    const lead = await Lead.findByPk(proposal.leadId);
+    if (lead) {
+      const history = [
+        ...lead.history,
+        {
+          note: `Proposal "${proposal.title}" rejected by student`,
+          timestamp: new Date(),
+          userId: req.user.id,
+          rejectionReason,
+          feedback: feedback || null,
+        },
+      ];
+      await lead.update({ history });
+    }
+    // Notify consultant
+    await notificationService.sendNotification({
+      userId: proposal.consultantId,
+      type: 'in_app',
+      message: `Your proposal "${proposal.title}" has been rejected by the student`,
+      details: {
+        proposalId: proposal.id,
+        studentId: req.user.id,
+        rejectionReason,
+        feedback: feedback || null,
+        rejectedAt: new Date(),
+      },
+    });
+    res.json({
+      message: 'Proposal rejected successfully',
+      proposal,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 module.exports = {
   createProfile,
   getProfile,
@@ -594,4 +782,8 @@ module.exports = {
   getDeadlineCalendar,
   getDocumentStatus,
   downloadApplicationSummary,
+  getMyProposals,
+  getProposalById,
+  approveProposal,
+  rejectProposal,
 };

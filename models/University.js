@@ -49,6 +49,16 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         defaultValue: {},
       },
+      percentageAgreed: {
+        type: DataTypes.DECIMAL,
+        allowNull: false,
+        defaultValue: 10,
+        validate: {
+          min: 1,
+          max: 100,
+        },
+        comment: 'percentage Agreed value based on MOU status',
+      },
     },
     {
       sequelize,

@@ -448,9 +448,16 @@ const createStaff = async (req, res, next) => {
 const updateStaff = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { password, ...rest } = req.body;
     const user = await User.findByPk(id);
     if (!user) throw new Error('User not found');
-    await user.update(req.body);
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10); 
+      rest['password'] = hashedPassword;
+    }
+
+    await user.update(rest);
     await notificationService.sendNotification({
       userId: user.id,
       type: 'in_app',
