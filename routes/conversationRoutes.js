@@ -291,6 +291,36 @@ router.delete(
   conversationController.removeParticipant
 );
 
+// Add this route to your existing conversation routes file
+// Place it BEFORE the generic /:id routes to avoid conflicts
+
+/**
+ * @swagger
+ * /api/v1/conversations/lead/{leadUserId}:
+ *   get:
+ *     summary: Get or create conversation with lead
+ *     tags: [Conversations]
+ *     description: Get or create a conversation between consultant and lead/student
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: leadUserId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The ID of the lead/student user
+ *     responses:
+ *       200:
+ *         description: Conversation retrieved or created successfully
+ *       403:
+ *         description: Access denied to this lead
+ *       404:
+ *         description: Lead not found
+ */
+router.get('/lead/:leadUserId', conversationController.getOrCreateLeadConversation);
+
 /**
  * @swagger
  * /api/v1/conversations/{id}/archive:
