@@ -70,6 +70,8 @@ const officeSchema = Joi.object({
     postalCode: Joi.string().optional().allow(''),
   }).required(),
 
+  region: Joi.string().optional().allow(''),
+
   contact: Joi.object({
     phone: Joi.string().required(),
     email: Joi.string().email().required(),

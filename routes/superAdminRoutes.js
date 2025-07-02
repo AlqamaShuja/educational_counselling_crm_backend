@@ -11,11 +11,22 @@ router.use(protect, restrictTo('super_admin'));
  * @swagger
  * /api/v1/super-admin/dashboard:
  *   get:
- *     summary: Get super admin dashboard statistics
+ *     summary: Get super admin dashboard statistics with filters
  *     tags: [SuperAdmin]
- *     description: Retrieves comprehensive dashboard statistics for super admin.
  *     security:
  *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: filter
+ *         schema:
+ *           type: string
+ *           enum: [branch, region, office]
+ *         description: Filter type
+ *       - in: query
+ *         name: filterValue
+ *         schema:
+ *           type: string
+ *         description: Filter value (region code or office ID)
  *     responses:
  *       200:
  *         description: Dashboard statistics retrieved successfully
@@ -24,58 +35,39 @@ router.use(protect, restrictTo('super_admin'));
  *             schema:
  *               type: object
  *               properties:
- *                 totalOffices:
- *                   type: number
- *                   example: 5
- *                 totalStaff:
- *                   type: number
- *                   example: 25
- *                 totalStudents:
- *                   type: number
- *                   example: 150
- *                 totalCourses:
- *                   type: number
- *                   example: 40
- *                 totalLeads:
- *                   type: number
- *                   example: 75
- *                 totalUniversities:
- *                   type: number
- *                   example: 12
- *                 leadStatusBreakdown:
+ *                 success:
+ *                   type: boolean
+ *                 data:
  *                   type: object
  *                   properties:
- *                     new:
+ *                     totalOffices:
  *                       type: number
- *                     in_progress:
+ *                     totalStaff:
  *                       type: number
- *                     converted:
+ *                     totalStudents:
  *                       type: number
- *                     lost:
+ *                     totalCourses:
  *                       type: number
- *                 officePerformance:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       officeName:
- *                         type: string
- *                       leadsCount:
- *                         type: number
- *                       conversionsCount:
- *                         type: number
- *                 recentActivities:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       description:
- *                         type: string
- *                       createdAt:
- *                         type: string
- *                         format: date-time
+ *                     totalLeads:
+ *                       type: number
+ *                     totalUniversities:
+ *                       type: number
+ *                     conversionRate:
+ *                       type: number
+ *                     totalConversions:
+ *                       type: number
+ *                     activeOffices:
+ *                       type: number
+ *                     inactiveOffices:
+ *                       type: number
+ *                     leadStatusBreakdown:
+ *                       type: object
+ *                     officePerformance:
+ *                       type: array
+ *                     recentActivities:
+ *                       type: array
+ *                     monthlyGrowth:
+ *                       type: object
  *       401:
  *         description: Unauthorized
  *       403:

@@ -453,7 +453,7 @@ const updateStaff = async (req, res, next) => {
     if (!user) throw new Error('User not found');
 
     if (password) {
-      const hashedPassword = await bcrypt.hash(password, 10); 
+      const hashedPassword = await bcrypt.hash(password, 10);
       rest['password'] = hashedPassword;
     }
 
@@ -825,9 +825,266 @@ const assignLeadToConsultant = async (req, res, next) => {
   }
 };
 
+// const getDashboardStats = async (req, res, next) => {
+//    try {
+//      const { filter, filterValue } = req.query;
+
+//      // Prepare office filter conditions
+//      let officeWhere = { isActive: true };
+//      if (filter === 'branch') {
+//        officeWhere.isBranch = true;
+//      } else if (filter === 'region' && filterValue) {
+//        officeWhere.region = filterValue;
+//      } else if (filter === 'office' && filterValue) {
+//        officeWhere.id = filterValue;
+//      }
+
+//      // Get filtered office IDs
+//      const filteredOffices = await Office.findAll({
+//        where: officeWhere,
+//        attributes: ['id'],
+//        raw: true
+//      });
+//      const filteredOfficeIds = filteredOffices.map(office => office.id);
+
+//      // Get total counts
+//      const [
+//        totalOffices,
+//        totalStaff,
+//        totalStudents,
+//        totalCourses,
+//        totalLeads,
+//        totalUniversities,
+//        leadStatusBreakdown,
+//        officePerformance,
+//        recentActivities,
+//      ] = await Promise.all([
+//       // Total office count
+//        Office.count({ where: officeWhere }),
+
+//       // Total staff count (excluding students)
+//        User.count({
+//          where: {
+//            role: { [Op.ne]: 'student' },
+//            isActive: true,
+//            ...(filteredOfficeIds.length > 0 && { officeId: { [Op.in]: filteredOfficeIds } })
+//          },
+//        }),
+
+//       // Total students count
+//        User.count({
+//          where: {
+//            role: 'student',
+//            isActive: true,
+//            ...(filteredOfficeIds.length > 0 && { officeId: { [Op.in]: filteredOfficeIds } })
+//          },
+//        }),
+
+//       // Total courses count
+//       Course.count(),
+
+//       // Total leads count
+//        Lead.count({
+//          where: filteredOfficeIds.length > 0 ? { officeId: { [Op.in]: filteredOfficeIds } } : {}
+//        }),
+
+//       // Total universities count
+//       University.count(),
+
+//       // Lead status breakdown
+//        Lead.findAll({
+//          attributes: [
+//            'status',
+//            [sequelize.fn('COUNT', sequelize.col('status')), 'count'],
+//          ],
+//          where: filteredOfficeIds.length > 0 ? { officeId: { [Op.in]: filteredOfficeIds } } : {},
+//          group: ['status'],
+//          raw: true,
+//        }),
+
+//       // Office performance - Fixed the table name reference
+//        Office.findAll({
+//          where: officeWhere,
+//         attributes: [
+//           'id',
+//           'name',
+//           [
+//             sequelize.fn('COUNT', sequelize.col('LeadDistributionRules.id')),
+//             'leadsCount',
+//           ],
+//           [
+//             sequelize.literal(`(
+//               SELECT COUNT(*)
+//               FROM "Leads"
+//               WHERE "Leads"."officeId" = "Office"."id"
+//               AND "Leads"."status" = 'converted'
+//             )`),
+//             'conversionsCount',
+//           ],
+//           [
+//             sequelize.literal(`(
+//               SELECT COUNT(*)
+//               FROM "Leads"
+//               WHERE "Leads"."officeId" = "Office"."id"
+//             )`),
+//             'totalLeadsCount',
+//           ],
+//         ],
+//         include: [
+//           {
+//             model: LeadDistributionRule,
+//             attributes: [],
+//             required: false,
+//           },
+//         ],
+//         group: ['Office.id', 'Office.name'],
+//         raw: true,
+//       }),
+
+//       // Recent activities (last 10 lead updates)
+//        Lead.findAll({
+//          where: filteredOfficeIds.length > 0 ? { officeId: { [Op.in]: filteredOfficeIds } } : {},
+//          attributes: ['id', 'status', 'createdAt', 'updatedAt'],
+//          include: [
+//            {
+//              model: User,
+//              as: 'student',
+//              attributes: ['name', 'email'],
+//            },
+//            {
+//              model: Office,
+//              attributes: ['name'],
+//            },
+//          ],
+//          order: [['updatedAt', 'DESC']],
+//          limit: 10,
+//        }),
+//     ]);
+
+//     // Format lead status breakdown
+//     const statusBreakdown = {
+//       new: 0,
+//       in_progress: 0,
+//       converted: 0,
+//       lost: 0,
+//     };
+
+//     leadStatusBreakdown.forEach((item) => {
+//       statusBreakdown[item.status] = parseInt(item.count);
+//     });
+
+//     // Format recent activities
+//     const formattedActivities = recentActivities.map((lead) => ({
+//       id: lead.id,
+//       description: `Lead ${lead.student?.name || 'Unknown'} status: ${lead.status} (${lead.Office?.name || 'No Office'})`,
+//       createdAt: lead.updatedAt,
+//       type: 'lead_update',
+//     }));
+
+//     // Calculate additional metrics
+//     const totalConversions = statusBreakdown.converted;
+//     const conversionRate =
+//       totalLeads > 0 ? ((totalConversions / totalLeads) * 100).toFixed(1) : 0;
+
+//     const activeOffices = totalOffices; // Already counted active offices
+//     const inactiveOffices = await Office.count({ where: { isActive: false } });
+
+//     res.json({
+//       success: true,
+//       data: {
+//         // Core metrics
+//         totalOffices,
+//         totalStaff,
+//         totalStudents,
+//         totalCourses,
+//         totalLeads,
+//         totalUniversities,
+
+//         // Calculated metrics
+//         conversionRate: parseFloat(conversionRate),
+//         totalConversions,
+//         activeOffices,
+//         inactiveOffices,
+
+//         // Breakdowns
+//         leadStatusBreakdown: statusBreakdown,
+//         officePerformance: officePerformance.map((office) => ({
+//           officeName: office.name,
+//           leadsCount: parseInt(office.totalLeadsCount || 0),
+//           conversionsCount: parseInt(office.conversionsCount || 0),
+//           conversionRate:
+//             office.totalLeadsCount > 0
+//               ? (
+//                   (office.conversionsCount / office.totalLeadsCount) *
+//                   100
+//                 ).toFixed(1)
+//               : 0,
+//         })),
+
+//         // Activities
+//         recentActivities: formattedActivities,
+
+//         // Trends (mock data for now)
+//         monthlyGrowth: {
+//           leads: '+12.5%',
+//           conversions: '+8.3%',
+//           offices: '+2.1%',
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     console.error('Error fetching dashboard stats:', error);
+//     next(error);
+//   }
+// };
+
 const getDashboardStats = async (req, res, next) => {
   try {
-    // Get total counts
+    const { filter, filterValue } = req.query;
+
+    console.log('Dashboard filter params:', { filter, filterValue });
+
+    // Prepare office filter conditions
+    let officeWhere = { isActive: true };
+
+    if (filter === 'branch') {
+      officeWhere.isBranch = true;
+    } else if (filter === 'region' && filterValue) {
+      officeWhere.region = filterValue;
+    } else if (filter === 'office' && filterValue) {
+      officeWhere.id = filterValue;
+    }
+
+    console.log('Office filter conditions:', officeWhere);
+
+    // Get filtered office IDs
+    const filteredOffices = await Office.findAll({
+      where: officeWhere,
+      attributes: ['id'],
+      raw: true,
+    });
+    const filteredOfficeIds = filteredOffices.map((office) => office.id);
+
+    console.log('Filtered office IDs:', filteredOfficeIds);
+
+    // Prepare user filter conditions based on filtered offices
+    let userOfficeFilter = {};
+    if (filteredOfficeIds.length > 0) {
+      userOfficeFilter = {
+        [Op.or]: [
+          { officeId: { [Op.in]: filteredOfficeIds } },
+          { officeId: null }, // Include users not assigned to any office for some cases
+        ],
+      };
+    }
+
+    // Prepare lead filter conditions
+    let leadOfficeFilter = {};
+    if (filteredOfficeIds.length > 0) {
+      leadOfficeFilter = { officeId: { [Op.in]: filteredOfficeIds } };
+    }
+
+    // Get total counts with proper filtering
     const [
       totalOffices,
       totalStaff,
@@ -839,52 +1096,62 @@ const getDashboardStats = async (req, res, next) => {
       officePerformance,
       recentActivities,
     ] = await Promise.all([
-      // Total office count
-      Office.count({ where: { isActive: true } }),
+      // Total office count (filtered)
+      Office.count({ where: officeWhere }),
 
-      // Total staff count (excluding students)
+      // Total staff count (excluding students) - filter by office if specified
       User.count({
         where: {
           role: { [Op.ne]: 'student' },
           isActive: true,
+          ...(filteredOfficeIds.length > 0 && userOfficeFilter),
         },
       }),
 
-      // Total students count
+      // Total students count - filter by office if specified
       User.count({
         where: {
           role: 'student',
           isActive: true,
+          ...(filteredOfficeIds.length > 0 && userOfficeFilter),
         },
       }),
 
-      // Total courses count
+      // Total courses count (global - not office specific)
       Course.count(),
 
-      // Total leads count
-      Lead.count(),
+      // Total leads count - filter by office
+      Lead.count({
+        where: leadOfficeFilter,
+      }),
 
-      // Total universities count
+      // Total universities count (global - not office specific)
       University.count(),
 
-      // Lead status breakdown
+      // Lead status breakdown - filter by office
       Lead.findAll({
         attributes: [
           'status',
           [sequelize.fn('COUNT', sequelize.col('status')), 'count'],
         ],
+        where: leadOfficeFilter,
         group: ['status'],
         raw: true,
       }),
 
-      // Office performance - Fixed the table name reference
+      // Office performance - only for filtered offices
       Office.findAll({
+        where: officeWhere,
         attributes: [
           'id',
           'name',
           [
-            sequelize.fn('COUNT', sequelize.col('LeadDistributionRules.id')),
-            'leadsCount',
+            sequelize.literal(`(
+              SELECT COUNT(*) 
+              FROM "Leads" 
+              WHERE "Leads"."officeId" = "Office"."id"
+            )`),
+            'totalLeadsCount',
           ],
           [
             sequelize.literal(`(
@@ -895,28 +1162,14 @@ const getDashboardStats = async (req, res, next) => {
             )`),
             'conversionsCount',
           ],
-          [
-            sequelize.literal(`(
-              SELECT COUNT(*) 
-              FROM "Leads" 
-              WHERE "Leads"."officeId" = "Office"."id"
-            )`),
-            'totalLeadsCount',
-          ],
-        ],
-        include: [
-          {
-            model: LeadDistributionRule,
-            attributes: [],
-            required: false,
-          },
         ],
         group: ['Office.id', 'Office.name'],
         raw: true,
       }),
 
-      // Recent activities (last 10 lead updates)
+      // Recent activities (last 10 lead updates) - filter by office
       Lead.findAll({
+        where: leadOfficeFilter,
         attributes: ['id', 'status', 'createdAt', 'updatedAt'],
         include: [
           {
@@ -933,6 +1186,15 @@ const getDashboardStats = async (req, res, next) => {
         limit: 10,
       }),
     ]);
+
+    console.log('Query results:', {
+      totalOffices,
+      totalStaff,
+      totalStudents,
+      totalLeads,
+      leadStatusBreakdown: leadStatusBreakdown.length,
+      officePerformance: officePerformance.length,
+    });
 
     // Format lead status breakdown
     const statusBreakdown = {
@@ -960,50 +1222,69 @@ const getDashboardStats = async (req, res, next) => {
       totalLeads > 0 ? ((totalConversions / totalLeads) * 100).toFixed(1) : 0;
 
     const activeOffices = totalOffices; // Already counted active offices
-    const inactiveOffices = await Office.count({ where: { isActive: false } });
+
+    // For inactive offices, only count if no specific filter is applied
+    const inactiveOffices = filter
+      ? 0 // Don't show inactive offices when filtering by specific criteria
+      : await Office.count({ where: { isActive: false } });
+
+    // Prepare response data
+    const responseData = {
+      // Core metrics
+      totalOffices,
+      totalStaff,
+      totalStudents,
+      totalCourses,
+      totalLeads,
+      totalUniversities,
+
+      // Calculated metrics
+      conversionRate: parseFloat(conversionRate),
+      totalConversions,
+      activeOffices,
+      inactiveOffices,
+
+      // Breakdowns
+      leadStatusBreakdown: statusBreakdown,
+      officePerformance: officePerformance.map((office) => ({
+        officeName: office.name,
+        leadsCount: parseInt(office.totalLeadsCount || 0),
+        conversionsCount: parseInt(office.conversionsCount || 0),
+        conversionRate:
+          office.totalLeadsCount > 0
+            ? (
+                (office.conversionsCount / office.totalLeadsCount) *
+                100
+              ).toFixed(1)
+            : 0,
+      })),
+
+      // Activities
+      recentActivities: formattedActivities,
+
+      // Trends (you can calculate real trends based on your requirements)
+      monthlyGrowth: {
+        leads: '+12.5%',
+        conversions: '+8.3%',
+        offices: '+2.1%',
+      },
+
+      // Filter info for debugging
+      appliedFilter: {
+        filter,
+        filterValue,
+        filteredOfficeCount: filteredOfficeIds.length,
+      },
+    };
+
+    console.log('Sending response data:', {
+      ...responseData,
+      appliedFilter: responseData.appliedFilter,
+    });
 
     res.json({
       success: true,
-      data: {
-        // Core metrics
-        totalOffices,
-        totalStaff,
-        totalStudents,
-        totalCourses,
-        totalLeads,
-        totalUniversities,
-
-        // Calculated metrics
-        conversionRate: parseFloat(conversionRate),
-        totalConversions,
-        activeOffices,
-        inactiveOffices,
-
-        // Breakdowns
-        leadStatusBreakdown: statusBreakdown,
-        officePerformance: officePerformance.map((office) => ({
-          officeName: office.name,
-          leadsCount: parseInt(office.totalLeadsCount || 0),
-          conversionsCount: parseInt(office.conversionsCount || 0),
-          conversionRate:
-            office.totalLeadsCount > 0
-              ? (
-                  (office.conversionsCount / office.totalLeadsCount) *
-                  100
-                ).toFixed(1)
-              : 0,
-        })),
-
-        // Activities
-        recentActivities: formattedActivities,
-
-        // Trends (mock data for now)
-        monthlyGrowth: {
-          leads: '+12.5%',
-          conversions: '+8.3%',
-          offices: '+2.1%',
-        },
-      },
+      data: responseData,
     });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
