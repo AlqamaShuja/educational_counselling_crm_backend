@@ -1456,6 +1456,7 @@ const getDashboardStats = async (req, res, next) => {
       opportunity: 0,
       project: 0,
       done: 0,
+      deal: 0,
     };
 
     leadStatusBreakdown.forEach((item) => {
