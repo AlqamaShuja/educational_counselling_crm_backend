@@ -54,6 +54,21 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'consultantId',
         as: 'consultantProposals',
       });
+
+      this.hasMany(models.Checklist, {
+        foreignKey: 'studentId',
+        as: 'studentChecklists', // user.getStudentChecklists()
+        onDelete: 'CASCADE', // optional but usually sensible
+        onUpdate: 'CASCADE',
+      });
+
+      // All checklists where the user is the **consultant**
+      this.hasMany(models.Checklist, {
+        foreignKey: 'consultantId',
+        as: 'consultantChecklists', // user.getConsultantChecklists()
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+      });
     }
   }
   User.init(

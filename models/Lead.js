@@ -71,7 +71,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         defaultValue: 'lead',
         allowNull: false,
-        // Recommended values: lead, opportunity, project, done
+        // Recommended values: lead, opportunity, project, done, deal
       },
       parked: {
         type: DataTypes.BOOLEAN,

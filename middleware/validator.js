@@ -178,6 +178,23 @@ const notificationSchema = Joi.object({
   status: Joi.string().valid('sent', 'pending', 'failed').optional(),
 });
 
+const checklistSchema = Joi.object({
+  title: Joi.string().required(),
+  description: Joi.string().optional().allow(''),
+  dueDate: Joi.date().iso().optional().allow(null),
+  priority: Joi.string().valid('low', 'medium', 'high').default('medium'),
+  items: Joi.array().items(
+    Joi.object({
+      title: Joi.string().required(),
+      description: Joi.string().optional().allow(''),
+      completed: Joi.boolean().default(false),
+      dueDate: Joi.date().iso().optional().allow(null)
+    }).unknown(),
+  ).required(),
+  status: Joi.string().valid('pending', 'in_progress', 'completed').default('pending'),
+  additionalData: Joi.object().optional().default({})
+});
+
 const reportSchema = Joi.object({
   type: Joi.string()
     .valid(
@@ -239,5 +256,6 @@ module.exports = {
   notificationSchema,
   reportSchema,
   leadRuleSchema,
-  studentProfileSchema,
+  checklistSchema,
+  studentProfileSchema
 };

@@ -11,6 +11,7 @@ const courseRoutes = require('./courseRoutes');
 const universityRoutes = require('./universityRoutes');
 const fileRoutes = require('./fileRoutes');
 const proposalRoutes = require('./proposalRoutes');
+const checklistRoutes = require('./checklistRoutes');
 
 // New messaging routes
 const messageRoutes = require('./messageRoutes');
@@ -28,6 +29,7 @@ module.exports = (app) => {
   app.use(`${API_PREFIX_V1}/receptionist`, receptionistRoutes);
   app.use(`${API_PREFIX_V1}/consultant`, consultantRoutes);
   app.use(`${API_PREFIX_V1}/consultant`, proposalRoutes);
+  app.use(`${API_PREFIX_V1}/checklists`, checklistRoutes);
   app.use(`${API_PREFIX_V1}/student`, studentRoutes);
 
   // General routes
@@ -60,6 +62,7 @@ module.exports = (app) => {
         file: `${API_PREFIX_V1}/file`,
         messages: `${API_PREFIX_V1}/messages`,
         conversations: `${API_PREFIX_V1}/conversations`,
+        checklists: `${API_PREFIX_V1}/checklists`,
       },
       features: {
         realTimeMessaging: true,
