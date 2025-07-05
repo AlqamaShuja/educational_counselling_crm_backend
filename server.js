@@ -9,6 +9,7 @@ const errorMiddleware = require('./middleware/errorMiddleware');
 const passport = require('passport');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
@@ -21,6 +22,8 @@ const io = new Server(server, {
 
 app.use(express.json());
 app.use(cors({ origin: '*' }));
+
+app.use('/uploads/leads', express.static(path.join(__dirname, 'uploads/leads')));
 
 app.use(passport.initialize());
 
