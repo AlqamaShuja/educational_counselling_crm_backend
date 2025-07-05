@@ -109,7 +109,11 @@ const checkCommunicationPermission = async (
         return !!lead;
       }
       if (recipient.role === 'consultant') {
-        return recipient.officeId === user.officeId;
+        const fetchRecipientOffice = await OfficeConsultant.findOne({
+          where: { userId: recipientId, officeId: user.officeId },
+        })
+
+        return !!fetchRecipientOffice;
       }
       if (recipient.role === 'super_admin') {
         return true;
