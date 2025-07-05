@@ -15,7 +15,7 @@ const checklistRoutes = require('./checklistRoutes');
 
 // New messaging routes
 const messageRoutes = require('./messageRoutes');
-const conversationRoutes = require('./conversationRoutes');
+// const conversationRoutes = require('./conversationRoutes');
 
 const API_PREFIX_V1 = '/api/v1';
 
@@ -40,7 +40,7 @@ module.exports = (app) => {
 
   // Real-time messaging routes
   app.use(`${API_PREFIX_V1}/messages`, messageRoutes);
-  app.use(`${API_PREFIX_V1}/conversations`, conversationRoutes);
+  // app.use(`${API_PREFIX_V1}/conversations`, conversationRoutes);
 
   // API status endpoint
   app.get(`${API_PREFIX_V1}/status`, (req, res) => {

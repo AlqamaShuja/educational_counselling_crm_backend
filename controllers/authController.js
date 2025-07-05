@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const emailService = require('../services/emailService');
 const axios = require('axios');
+const AppError = require('../utils/appError');
 
 const login = async (req, res, next) => {
   try {
@@ -13,7 +14,8 @@ const login = async (req, res, next) => {
 
     const user = await User.findOne({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      throw new Error('Invalid credentials');
+      // throw new Error('Invalid credentials');
+      throw new AppError('Invalid credentials', 400);
     }
 
     if (!user.isActive) {

@@ -33,6 +33,10 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true,
       },
+      details: {
+        type: Sequelize.JSONB,
+        defaultValue: [],
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,

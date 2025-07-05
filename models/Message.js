@@ -12,10 +12,6 @@ module.exports = (sequelize, DataTypes) => {
         as: 'recipient',
         foreignKey: 'recipientId',
       });
-      // Message.belongsTo(models.Conversation, {
-      //   as: 'conversation',
-      //   foreignKey: 'conversationId',
-      // });
       Message.belongsTo(models.Message, {
         as: 'replyTo',
         foreignKey: 'replyToId',
@@ -34,11 +30,6 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
-      conversationId: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        // references: { model: 'Conversations', key: 'id' },
-      },
       senderId: {
         type: DataTypes.UUID,
         allowNull: false,
@@ -46,7 +37,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       recipientId: {
         type: DataTypes.UUID,
-        allowNull: true, // Can be null for group conversations
+        allowNull: false, // Make this required for direct messaging
         references: { model: 'Users', key: 'id' },
       },
       content: {
@@ -99,6 +90,12 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      // Add a conversation identifier for grouping messages
+      conversationHash: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        comment: 'Hash of senderId and recipientId for grouping messages',
+      },
       metadata: {
         type: DataTypes.JSONB,
         allowNull: true,
@@ -112,9 +109,14 @@ module.exports = (sequelize, DataTypes) => {
       timestamps: true,
       paranoid: true,
       indexes: [
-        // {
-        //   fields: ['conversationId', 'createdAt'],
-        // },
+        {
+          fields: ['senderId', 'recipientId', 'createdAt'],
+          name: 'messages_conversation_index',
+        },
+        {
+          fields: ['conversationHash', 'createdAt'],
+          name: 'messages_conversation_hash_index',
+        },
         {
           fields: ['senderId'],
         },
@@ -130,6 +132,19 @@ module.exports = (sequelize, DataTypes) => {
           fields: [sequelize.literal("to_tsvector('english', content)")],
         },
       ],
+      hooks: {
+        beforeCreate: (message) => {
+          // Create a conversation hash for easy grouping
+          const ids = [message.senderId, message.recipientId].sort();
+          message.conversationHash = `${ids[0]}_${ids[1]}`;
+        },
+        beforeUpdate: (message) => {
+          if (message.changed('senderId') || message.changed('recipientId')) {
+            const ids = [message.senderId, message.recipientId].sort();
+            message.conversationHash = `${ids[0]}_${ids[1]}`;
+          }
+        },
+      },
     }
   );
 

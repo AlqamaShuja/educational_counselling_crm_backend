@@ -119,6 +119,7 @@ const officeSchema = Joi.object({
   managerId: Joi.string().uuid().optional().allow(null),
   consultants: Joi.array().items(Joi.string().uuid()).optional(),
   isActive: Joi.boolean().optional(),
+  isBranch: Joi.boolean().optional(),
 });
 
 const leadSchema = Joi.object({

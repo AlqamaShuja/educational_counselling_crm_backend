@@ -1,487 +1,401 @@
-const messageService = require('../services/messageService');
-const {
-  uploadToCloud,
-  getFileMetadata,
-  getMessageTypeFromMime,
-} = require('../middleware/uploadMiddleware');
-const AppError = require('../utils/appError');
+const { Op } = require('sequelize');
+const { Message, User, Lead } = require('../models');
 
-class MessageController {
-  // Send a text message
-  async sendMessage(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const {
-        conversationId,
-        content,
-        type = 'text',
-        replyToId,
-        metadata,
-      } = req.body;
+// Service Functions
+const createConversationHash = (senderId, recipientId) => {
+  const ids = [senderId, recipientId].sort();
+  return `${ids[0]}_${ids[1]}`;
+};
 
-      const message = await messageService.sendMessage(
-        userId,
-        conversationId,
-        content,
-        type,
-        replyToId,
-        metadata
-      );
-
-      res.status(201).json({
-        success: true,
-        message: 'Message sent successfully',
-        data: message,
-      });
-    } catch (error) {
-      next(error);
-    }
+const checkCommunicationPermission = async (sender, recipientId, models) => {
+  if (!sender || !sender.role) {
+    throw new Error('Invalid sender');
   }
 
-  // Send message with file attachment
-  async sendMessageWithFile(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const { conversationId, content, replyToId } = req.body;
-      const file = req.file;
+  const recipient = await models.User.findByPk(recipientId);
+  if (!recipient) {
+    throw new Error('Recipient not found');
+  }
 
-      if (!file) {
-        return next(new AppError('No file uploaded', 400));
+  if (sender.role === 'student') {
+    const lead = await models.Lead.findOne({
+      where: { studentId: sender.id, assignedConsultant: recipientId },
+    });
+    return !!lead && recipient.role === 'consultant';
+  }
+
+  if (sender.role === 'super_admin') {
+    return ['manager', 'consultant', 'receptionist'].includes(recipient.role);
+  }
+
+  if (sender.role === 'manager') {
+    const lead = await models.Lead.findOne({
+      where: { studentId: recipientId, officeId: sender.officeId },
+    });
+    return !!lead && recipient.role === 'student';
+  }
+
+  if (sender.role === 'consultant') {
+    const lead = await models.Lead.findOne({
+      where: { studentId: recipientId, assignedConsultant: sender.id },
+    });
+    return !!lead && recipient.role === 'student';
+  }
+
+  return false;
+};
+
+const getConversationDisplayName = async (conversationHash, models) => {
+  const [senderId, recipientId] = conversationHash.split('_');
+  const [sender, recipient] = await Promise.all([
+    models.User.findByPk(senderId, { attributes: ['name', 'role'] }),
+    models.User.findByPk(recipientId, { attributes: ['name', 'role'] }),
+  ]);
+
+  if (!sender || !recipient) return null;
+
+  const isStudentConsultant =
+    (sender.role === 'student' &&
+      ['consultant', 'manager'].includes(recipient.role)) ||
+    (['consultant', 'manager'].includes(sender.role) &&
+      recipient.role === 'student');
+
+  if (isStudentConsultant) {
+    return `${sender.role === 'student' ? recipient.name : sender.name} - ${
+      sender.role === 'student' ? sender.name : recipient.name
+    }`;
+  }
+
+  return `${sender.name} - ${recipient.name}`;
+};
+
+// Controller Functions
+const createMessage = async (req, res) => {
+  try {
+    const {
+      recipientId,
+      content,
+      type = 'text',
+      fileUrl,
+      fileName,
+      fileSize,
+      mimeType,
+      replyToId,
+    } = req.body;
+    const sender = req.user;
+    const io = req.app.get('io');
+
+    if (!content && type === 'text') {
+      return res
+        .status(400)
+        .json({ message: 'Content is required for text messages' });
+    }
+
+    const hasPermission = await checkCommunicationPermission(
+      sender,
+      recipientId,
+      { User, Lead }
+    );
+    if (!hasPermission) {
+      return res
+        .status(403)
+        .json({ message: 'Not authorized to send message to this recipient' });
+    }
+
+    const messageData = {
+      senderId: sender.id,
+      recipientId,
+      content,
+      type,
+      fileUrl,
+      fileName,
+      fileSize,
+      mimeType,
+      replyToId,
+      conversationHash: createConversationHash(sender.id, recipientId),
+    };
+
+    const message = await Message.create(messageData);
+
+    const senderDetails = await User.findByPk(sender.id, {
+      attributes: ['id', 'name', 'role'],
+    });
+    io.to(recipientId).emit('newMessage', {
+      ...message.toJSON(),
+      sender: senderDetails,
+    });
+
+    return res
+      .status(201)
+      .json({ message: 'Message sent successfully', data: message });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const getMessages = async (req, res) => {
+  try {
+    const { user } = req;
+    const { recipientId, limit = 50, offset = 0 } = req.query;
+
+    if (recipientId) {
+      const hasPermission = await checkCommunicationPermission(
+        user,
+        recipientId,
+        { User, Lead }
+      );
+      if (!hasPermission && user.role !== 'super_admin') {
+        return res
+          .status(403)
+          .json({ message: 'Not authorized to view this conversation' });
       }
 
-      // Get file metadata
-      const fileMetadata = getFileMetadata(file);
-      const messageType = getMessageTypeFromMime(file.mimetype);
+      const conversationHash = createConversationHash(user.id, recipientId);
+      const messages = await Message.findAndCountAll({
+        where: { conversationHash, deletedAt: null },
+        include: [
+          { model: User, as: 'sender', attributes: ['id', 'name', 'role'] },
+          { model: User, as: 'recipient', attributes: ['id', 'name', 'role'] },
+        ],
+        order: [['createdAt', 'DESC']],
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+      });
 
-      // Upload to cloud storage (if configured)
-      let fileUrl;
-      try {
-        fileUrl = await uploadToCloud(file);
-      } catch (uploadError) {
-        console.error('Cloud upload failed, using local path:', uploadError);
-        fileUrl = `/uploads/messages/${path.basename(path.dirname(file.path))}/${file.filename}`;
+      return res.status(200).json({
+        data: messages.rows,
+        total: messages.count,
+      });
+    }
+
+    let conversationHashes = [];
+    if (user.role === 'super_admin') {
+      // Fetch all student-consultant/manager conversations
+      conversationHashes = await Message.findAll({
+        where: { deletedAt: null },
+        attributes: ['conversationHash'],
+        group: ['conversationHash'],
+        include: [
+          { model: User, as: 'sender', attributes: ['role'] },
+          { model: User, as: 'recipient', attributes: ['role'] },
+        ],
+        having: {
+          [Op.or]: [
+            {
+              '$sender.role$': 'student',
+              '$recipient.role$': { [Op.in]: ['consultant', 'manager'] },
+            },
+            {
+              '$recipient.role$': 'student',
+              '$sender.role$': { [Op.in]: ['consultant', 'manager'] },
+            },
+          ],
+        },
+      });
+    } else if (user.role === 'manager') {
+      // Fetch conversations for leads in the manager's office
+      const leads = await Lead.findAll({ where: { officeId: user.officeId } });
+      const studentIds = leads.map((lead) => lead.studentId);
+      conversationHashes = await Message.findAll({
+        where: {
+          [Op.or]: [
+            { senderId: user.id, recipientId: { [Op.in]: studentIds } },
+            { recipientId: user.id, senderId: { [Op.in]: studentIds } },
+          ],
+          deletedAt: null,
+        },
+        attributes: ['conversationHash'],
+        group: ['conversationHash'],
+      });
+    } else {
+      // For consultants and students, fetch their conversations
+      conversationHashes = await Message.findAll({
+        where: {
+          [Op.or]: [{ senderId: user.id }, { recipientId: user.id }],
+          deletedAt: null,
+        },
+        attributes: ['conversationHash'],
+        group: ['conversationHash'],
+      });
+    }
+
+    const conversations = await Promise.all(
+      conversationHashes.map(async (msg) => {
+        const [senderId, recipientId] = msg.conversationHash.split('_');
+        const otherUserId = senderId === user.id ? recipientId : senderId;
+        const otherUser = await User.findByPk(otherUserId, {
+          attributes: ['id', 'name', 'role'],
+        });
+        const lastMessage = await Message.findOne({
+          where: { conversationHash: msg.conversationHash, deletedAt: null },
+          order: [['createdAt', 'DESC']],
+          include: [
+            { model: User, as: 'sender', attributes: ['id', 'name', 'role'] },
+            {
+              model: User,
+              as: 'recipient',
+              attributes: ['id', 'name', 'role'],
+            },
+          ],
+        });
+
+        let displayName;
+        if (user.role === 'super_admin') {
+          displayName = await getConversationDisplayName(msg.conversationHash, {
+            User,
+          });
+        } else {
+          displayName = otherUser ? otherUser.name : 'Unknown User';
+        }
+
+        return {
+          conversationHash: msg.conversationHash,
+          displayName,
+          lastMessage,
+          recipient: otherUser,
+        };
+      })
+    );
+
+    const sortedConversations = conversations
+      .filter((conv) => conv.displayName !== null)
+      .sort((a, b) => {
+        const aDate = a.lastMessage
+          ? new Date(a.lastMessage.createdAt)
+          : new Date(0);
+        const bDate = b.lastMessage
+          ? new Date(b.lastMessage.createdAt)
+          : new Date(0);
+        return bDate - aDate;
+      });
+
+    return res.status(200).json({
+      data: sortedConversations,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const updateMessage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    const { user } = req;
+
+    if (!content) {
+      return res.status(400).json({ message: 'Content is required' });
+    }
+
+    const message = await Message.findByPk(id);
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found' });
+    }
+
+    if (message.senderId !== user.id) {
+      return res
+        .status(403)
+        .json({ message: 'Not authorized to edit this message' });
+    }
+
+    await message.update({
+      content,
+      isEdited: true,
+      editedAt: new Date(),
+    });
+
+    return res
+      .status(200)
+      .json({ message: 'Message updated successfully', data: message });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const markMessageAsRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user } = req;
+    const io = req.app.get('io');
+
+    const message = await Message.findByPk(id);
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found' });
+    }
+
+    if (message.recipientId !== user.id) {
+      return res
+        .status(403)
+        .json({ message: 'Not authorized to mark this message as read' });
+    }
+
+    await message.update({ readAt: new Date() });
+
+    const senderDetails = await User.findByPk(message.senderId, {
+      attributes: ['id', 'name', 'role'],
+    });
+    io.to(message.senderId).emit('messageRead', {
+      messageId: message.id,
+      readAt: message.readAt,
+      recipientId: user.id,
+    });
+
+    return res
+      .status(200)
+      .json({ message: 'Message marked as read', data: message });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const getAllowedRecipients = async (req, res) => {
+  const { user } = req;
+  let recipients = [];
+  let attributes = ['id', 'name', 'role', 'email',];
+  try {
+    if (user.role === 'student') {
+      const lead = await Lead.findOne({ where: { studentId: user.id } });
+      if (lead && lead.assignedConsultant) {
+        const consultant = await User.findByPk(lead.assignedConsultant, {
+          attributes: attributes,
+        });
+        recipients = consultant
+          ? [{ id: consultant.id, name: consultant.name }]
+          : [];
       }
-
-      const fileData = {
-        fileUrl,
-        fileName: fileMetadata.originalName,
-        fileSize: fileMetadata.size,
-        mimeType: fileMetadata.mimetype,
-        messageType,
-      };
-
-      const message = await messageService.sendMessageWithFile(
-        userId,
-        conversationId,
-        fileData,
-        content,
-        replyToId
-      );
-
-      res.status(201).json({
-        success: true,
-        message: 'Message with file sent successfully',
-        data: message,
+    } else if (user.role === 'super_admin') {
+      recipients = await User.findAll({
+        where: { role: ['manager', 'consultant', 'receptionist', 'student'] },
+        attributes: attributes,
       });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Edit an existing message
-  async editMessage(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const messageId = req.params.id;
-      const { content } = req.body;
-
-      const message = await messageService.editMessage(
-        messageId,
-        userId,
-        content
-      );
-
-      res.json({
-        success: true,
-        message: 'Message updated successfully',
-        data: message,
+    } else if (user.role === 'manager') {
+      const leads = await Lead.findAll({ where: { officeId: user.officeId } });
+      const studentIds = leads.map((lead) => lead.studentId);
+      recipients = await User.findAll({
+        where: { id: studentIds, role: 'student' },
+        attributes: attributes,
       });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Delete a message
-  async deleteMessage(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const messageId = req.params.id;
-
-      await messageService.deleteMessage(messageId, userId);
-
-      res.json({
-        success: true,
-        message: 'Message deleted successfully',
+    } else if (user.role === 'consultant') {
+      const leads = await Lead.findAll({
+        where: { assignedConsultant: user.id },
       });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Mark message as read
-  async markMessageAsRead(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const messageId = req.params.id;
-
-      await messageService.markMessageAsRead(messageId, userId);
-
-      res.json({
-        success: true,
-        message: 'Message marked as read',
+      const studentIds = leads.map((lead) => lead.studentId);
+      recipients = await User.findAll({
+        where: { id: studentIds, role: 'student' },
+        attributes: attributes,
       });
-    } catch (error) {
-      next(error);
     }
+    res.status(200).json({ data: recipients });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
+};
 
-  // Mark multiple messages as read
-  async markMultipleMessagesAsRead(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const { messageIds } = req.body;
-
-      await messageService.markMultipleMessagesAsRead(messageIds, userId);
-
-      res.json({
-        success: true,
-        message: 'Messages marked as read',
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Get conversation messages
-  async getConversationMessages(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const conversationId = req.params.id;
-      const { page, limit, before, after } = req.query;
-
-      const options = {
-        page: parseInt(page) || 1,
-        limit: parseInt(limit) || 50,
-      };
-
-      if (before) options.before = new Date(before);
-      if (after) options.after = new Date(after);
-
-      const result = await messageService.getConversationMessages(
-        conversationId,
-        userId,
-        options
-      );
-
-      res.json({
-        success: true,
-        data: result.messages,
-        pagination: result.pagination,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Search messages
-  async searchMessages(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const {
-        q: query,
-        conversationId,
-        type,
-        from,
-        to,
-        page,
-        limit,
-      } = req.query;
-
-      const options = {
-        conversationId,
-        type,
-        page: parseInt(page) || 1,
-        limit: parseInt(limit) || 20,
-      };
-
-      if (from) options.from = new Date(from);
-      if (to) options.to = new Date(to);
-
-      const result = await messageService.searchMessages(
-        userId,
-        query,
-        options
-      );
-
-      res.json({
-        success: true,
-        data: result.messages,
-        pagination: result.pagination,
-        query,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Get message replies
-  async getMessageReplies(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const messageId = req.params.id;
-
-      const replies = await messageService.getMessageReplies(messageId, userId);
-
-      res.json({
-        success: true,
-        data: replies,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Get message statistics
-  async getMessageStats(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const conversationId =
-        req.params.conversationId || req.query.conversationId;
-
-      if (!conversationId) {
-        return next(new AppError('Conversation ID is required', 400));
-      }
-
-      const stats = await messageService.getMessageStats(
-        conversationId,
-        userId
-      );
-
-      res.json({
-        success: true,
-        data: stats,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Get recent messages across conversations
-  async getRecentMessages(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const { limit = 10 } = req.query;
-
-      // This would need to be implemented in messageService
-      // For now, return empty array
-      res.json({
-        success: true,
-        data: [],
-        message: 'Recent messages endpoint - to be implemented',
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // React to a message (future feature)
-  async reactToMessage(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const messageId = req.params.id;
-      const { reaction } = req.body; // emoji reaction
-
-      // This would need to be implemented
-      res.json({
-        success: true,
-        message: 'Message reaction feature - to be implemented',
-        data: {
-          messageId,
-          userId,
-          reaction,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Forward a message (future feature)
-  async forwardMessage(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const messageId = req.params.id;
-      const { conversationIds } = req.body;
-
-      // This would need to be implemented
-      res.json({
-        success: true,
-        message: 'Message forwarding feature - to be implemented',
-        data: {
-          messageId,
-          forwardedTo: conversationIds,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Pin/unpin a message (future feature)
-  async pinMessage(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const messageId = req.params.id;
-      const { pinned } = req.body;
-
-      // This would need to be implemented
-      res.json({
-        success: true,
-        message: 'Message pinning feature - to be implemented',
-        data: {
-          messageId,
-          pinned,
-          pinnedBy: userId,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Get message delivery status
-  async getMessageDeliveryStatus(req, res, next) {
-    try {
-      const messageId = req.params.id;
-
-      // This would need to be implemented to show delivery/read status per participant
-      res.json({
-        success: true,
-        message: 'Message delivery status feature - to be implemented',
-        data: {
-          messageId,
-          deliveryStatus: [],
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Export conversation messages
-  async exportMessages(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const conversationId = req.params.conversationId;
-      const { format = 'json', from, to } = req.query;
-
-      // This would need to be implemented
-      res.json({
-        success: true,
-        message: 'Message export feature - to be implemented',
-        data: {
-          conversationId,
-          format,
-          dateRange: { from, to },
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Get message thread (replies tree)
-  async getMessageThread(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const messageId = req.params.id;
-
-      // This would build a full thread tree of replies
-      const replies = await messageService.getMessageReplies(messageId, userId);
-
-      res.json({
-        success: true,
-        data: {
-          messageId,
-          thread: replies, // This would be a nested structure in full implementation
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Get unread message count across all conversations
-  async getUnreadCount(req, res, next) {
-    try {
-      const userId = req.user.id;
-
-      // This would aggregate unread counts across all user's conversations
-      res.json({
-        success: true,
-        data: {
-          totalUnread: 0, // To be implemented
-          conversationCounts: {}, // conversationId -> count
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Translate message (future feature)
-  async translateMessage(req, res, next) {
-    try {
-      const messageId = req.params.id;
-      const { targetLanguage } = req.body;
-
-      // This would integrate with translation service
-      res.json({
-        success: true,
-        message: 'Message translation feature - to be implemented',
-        data: {
-          messageId,
-          targetLanguage,
-          translatedText: 'Translation would appear here',
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // Report message (moderation)
-  async reportMessage(req, res, next) {
-    try {
-      const userId = req.user.id;
-      const messageId = req.params.id;
-      const { reason, description } = req.body;
-
-      // This would create a moderation report
-      res.json({
-        success: true,
-        message: 'Message reported successfully',
-        data: {
-          messageId,
-          reportedBy: userId,
-          reason,
-          description,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-}
-
-module.exports = new MessageController();
+module.exports = {
+  createMessage,
+  getMessages,
+  updateMessage,
+  // deleteMessage,
+  markMessageAsRead,
+  getAllowedRecipients,
+};
