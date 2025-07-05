@@ -2,48 +2,82 @@
 
 const { Op, literal } = require('sequelize');
 const { Message, User, Lead, Office, OfficeConsultant } = require('../models');
+const { validate: isUUID } = require('uuid');
 
 const createConversationHash = (senderId, recipientId) => {
   const ids = [senderId, recipientId].sort();
   return `${ids[0]}_${ids[1]}`;
 };
 
-// const checkCommunicationPermission = async (sender, recipientId, models) => {
-//   if (!sender || !sender.role) {
-//     throw new Error('Invalid sender');
-//   }
-
-//   const recipient = await models.User.findByPk(recipientId);
-//   if (!recipient) {
-//     throw new Error('Recipient not found');
-//   }
-
-//   if (sender.role === 'student') {
-//     const lead = await models.Lead.findOne({
-//       where: { studentId: sender.id, assignedConsultant: recipientId },
+// const checkCommunicationPermission = async (
+//   user,
+//   recipientId,
+//   { User, Lead }
+// ) => {
+//   try {
+//     const recipient = await User.findByPk(recipientId, {
+//       attributes: ['id', 'role', 'officeId'],
 //     });
-//     return !!lead && recipient.role === 'consultant';
-//   }
+//     if (!recipient) return false;
 
-//   if (sender.role === 'super_admin') {
-//     return ['manager', 'consultant', 'receptionist'].includes(recipient.role);
-//   }
+//     if (user.role === 'super_admin') {
+//       return true; // Super admins can message anyone
+//     }
 
-//   if (sender.role === 'manager') {
-//     const lead = await models.Lead.findOne({
-//       where: { studentId: recipientId, officeId: sender.officeId },
-//     });
-//     return !!lead && recipient.role === 'student';
-//   }
+//     if (user.role === 'manager') {
+//       if (recipient.role === 'student') {
+//         const lead = await Lead.findOne({
+//           where: { studentId: recipientId, officeId: user.officeId },
+//         });
+//         return !!lead;
+//       }
+//       if (recipient.role === 'consultant') {
+//         return recipient.officeId === user.officeId;
+//       }
+//       if (recipient.role === 'super_admin') {
+//         return true;
+//       }
+//       return false;
+//     }
 
-//   if (sender.role === 'consultant') {
-//     const lead = await models.Lead.findOne({
-//       where: { studentId: recipientId, assignedConsultant: sender.id },
-//     });
-//     return !!lead && recipient.role === 'student';
-//   }
+//     if (user.role === 'consultant') {
+//       if (recipient.role === 'student') {
+//         const lead = await Lead.findOne({
+//           where: { studentId: recipientId, assignedConsultant: user.id },
+//         });
+//         return !!lead;
+//       }
+//       if (recipient.role === 'manager') {
+//         const officeConsultant = await OfficeConsultant.findOne({
+//           where: { userId: user.id, officeId: recipient.officeId },
+//         });
+//         return !!officeConsultant;
+//       }
+//       if (['super_admin', 'receptionist'].includes(recipient.role)) {
+//         return true;
+//       }
+//       return false;
+//     }
 
-//   return false;
+//     if (user.role === 'student') {
+//       if (['consultant', 'manager'].includes(recipient.role)) {
+//         const lead = await Lead.findOne({
+//           where: { studentId: user.id, assignedConsultant: recipientId },
+//         });
+//         return !!lead || recipient.role === 'manager';
+//       }
+//       return false;
+//     }
+
+//     if (user.role === 'receptionist') {
+//       return recipient.role === 'super_admin';
+//     }
+
+//     return false;
+//   } catch (error) {
+//     console.error('Error in checkCommunicationPermission:', error);
+//     return false;
+//   }
 // };
 
 const checkCommunicationPermission = async (
@@ -52,11 +86,17 @@ const checkCommunicationPermission = async (
   { User, Lead }
 ) => {
   try {
+    // Validate recipientId is a UUID
+    if (!isUUID(recipientId)) {
+      return false;
+    }
+
     const recipient = await User.findByPk(recipientId, {
       attributes: ['id', 'role', 'officeId'],
     });
     if (!recipient) return false;
 
+    // Rest of the permission logic remains the same
     if (user.role === 'super_admin') {
       return true; // Super admins can message anyone
     }
@@ -743,6 +783,454 @@ const markMessageAsRead = async (req, res) => {
   }
 };
 
+// const getUnreadMessageCount = async (req, res) => {
+//   try {
+//     const { user } = req;
+
+//     let conversationHashes = [];
+//     if (user.role === 'super_admin') {
+//       conversationHashes = await Message.findAll({
+//         // where: { deletedAt: null },
+//         attributes: [
+//           [literal('DISTINCT "conversationHash"'), 'conversationHash'],
+//         ],
+//         include: [
+//           {
+//             model: User,
+//             as: 'sender',
+//             attributes: [],
+//             where: {
+//               role: {
+//                 [Op.in]: ['student', 'consultant', 'manager', 'receptionist'],
+//               },
+//             },
+//           },
+//           {
+//             model: User,
+//             as: 'recipient',
+//             attributes: [],
+//             where: {
+//               role: {
+//                 [Op.in]: ['student', 'consultant', 'manager', 'receptionist'],
+//               },
+//             },
+//           },
+//         ],
+//         where: {
+//           [Op.or]: [
+//             {
+//               [Op.and]: [
+//                 literal(`"sender"."role" = 'student'`),
+//                 literal(
+//                   `"recipient"."role" IN ('consultant', 'manager', 'receptionist')`
+//                 ),
+//               ],
+//             },
+//             {
+//               [Op.and]: [
+//                 literal(`"recipient"."role" = 'student'`),
+//                 literal(
+//                   `"sender"."role" IN ('consultant', 'manager', 'receptionist')`
+//                 ),
+//               ],
+//             },
+//           ],
+//         },
+//         raw: true,
+//       });
+//       conversationHashes = conversationHashes.map(
+//         (row) => row.conversationHash
+//       );
+//     } else if (user.role === 'manager') {
+//       const leads = await Lead.findAll({ where: { officeId: user.officeId } });
+//       const studentIds = leads.map((lead) => lead.studentId);
+//       conversationHashes = await Message.findAll({
+//         where: {
+//           [Op.or]: [
+//             {
+//               senderId: user.id,
+//               recipientId: {
+//                 [Op.in]: [
+//                   ...studentIds,
+//                   ...(
+//                     await User.findAll({
+//                       where: {
+//                         role: ['super_admin', 'consultant'],
+//                         officeId: user.officeId,
+//                       },
+//                       attributes: ['id'],
+//                     })
+//                   ).map((u) => u.id),
+//                 ],
+//               },
+//             },
+//             {
+//               recipientId: user.id,
+//               senderId: {
+//                 [Op.in]: [
+//                   ...studentIds,
+//                   ...(
+//                     await User.findAll({
+//                       where: {
+//                         role: ['super_admin', 'consultant'],
+//                         officeId: user.officeId,
+//                       },
+//                       attributes: ['id'],
+//                     })
+//                   ).map((u) => u.id),
+//                 ],
+//               },
+//             },
+//           ],
+//           deletedAt: null,
+//         },
+//         attributes: ['conversationHash'],
+//         group: ['conversationHash'],
+//         raw: true,
+//       });
+//       conversationHashes = conversationHashes.map(
+//         (row) => row.conversationHash
+//       );
+//     } else if (user.role === 'consultant') {
+//       const officeConsultants = await OfficeConsultant.findAll({
+//         where: { userId: user.id },
+//         attributes: ['officeId'],
+//       });
+//       const officeIds = officeConsultants.map((oc) => oc.officeId);
+//       const assignedStudents = await Lead.findAll({
+//         where: { assignedConsultant: user.id },
+//         attributes: ['studentId'],
+//       });
+//       const studentIds = assignedStudents.map((lead) => lead.studentId);
+//       const allowedUsers = await User.findAll({
+//         where: {
+//           [Op.or]: [
+//             { role: ['super_admin', 'receptionist'] },
+//             { role: 'manager', officeId: { [Op.in]: officeIds } },
+//             { id: studentIds },
+//           ],
+//         },
+//         attributes: ['id'],
+//       });
+//       conversationHashes = await Message.findAll({
+//         where: {
+//           [Op.or]: [
+//             {
+//               senderId: user.id,
+//               recipientId: { [Op.in]: allowedUsers.map((u) => u.id) },
+//             },
+//             {
+//               recipientId: user.id,
+//               senderId: { [Op.in]: allowedUsers.map((u) => u.id) },
+//             },
+//           ],
+//           deletedAt: null,
+//         },
+//         attributes: ['conversationHash'],
+//         group: ['conversationHash'],
+//         raw: true,
+//       });
+//       conversationHashes = conversationHashes.map(
+//         (row) => row.conversationHash
+//       );
+//     } else {
+//       conversationHashes = await Message.findAll({
+//         where: {
+//           [Op.or]: [{ senderId: user.id }, { recipientId: user.id }],
+//           deletedAt: null,
+//         },
+//         attributes: ['conversationHash'],
+//         group: ['conversationHash'],
+//         raw: true,
+//       });
+//       conversationHashes = conversationHashes.map(
+//         (row) => row.conversationHash
+//       );
+//     }
+
+//     const unreadCounts = await Promise.all(
+//       conversationHashes.map(async (conversationHash) => {
+//         const count = await Message.count({
+//           where: {
+//             conversationHash,
+//             recipientId: user.id,
+//             readAt: null,
+//             deletedAt: null,
+//           },
+//         });
+//         return { conversationHash, unreadCount: count };
+//       })
+//     );
+
+//     return res.status(200).json({
+//       data: unreadCounts,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({ message: error.message });
+//   }
+// };
+
+const getUnreadMessageCount = async (req, res) => {
+  try {
+    const { user } = req;
+
+    let conversationHashes = [];
+    if (user.role === 'super_admin') {
+      conversationHashes = await Message.findAll({
+        attributes: [
+          [literal('DISTINCT "conversationHash"'), 'conversationHash'],
+        ],
+        where: {
+          deletedAt: null,
+          [Op.or]: [
+            // Include conversations where super_admin is sender or recipient
+            { senderId: user.id },
+            { recipientId: user.id },
+            // Include monitored conversations (e.g., student ↔ manager/consultant/receptionist)
+            {
+              [Op.and]: [
+                literal(`"sender"."role" = 'student'`),
+                literal(
+                  `"recipient"."role" IN ('consultant', 'manager', 'receptionist')`
+                ),
+              ],
+            },
+            {
+              [Op.and]: [
+                literal(`"recipient"."role" = 'student'`),
+                literal(
+                  `"sender"."role" IN ('consultant', 'manager', 'receptionist')`
+                ),
+              ],
+            },
+          ],
+        },
+        include: [
+          {
+            model: User,
+            as: 'sender',
+            attributes: [],
+            where: {
+              role: {
+                [Op.in]: [
+                  'student',
+                  'consultant',
+                  'manager',
+                  'receptionist',
+                  'super_admin',
+                ],
+              },
+            },
+          },
+          {
+            model: User,
+            as: 'recipient',
+            attributes: [],
+            where: {
+              role: {
+                [Op.in]: [
+                  'student',
+                  'consultant',
+                  'manager',
+                  'receptionist',
+                  'super_admin',
+                ],
+              },
+            },
+          },
+        ],
+        raw: true,
+      });
+      conversationHashes = conversationHashes.map(
+        (row) => row.conversationHash
+      );
+    } else if (user.role === 'manager') {
+      const leads = await Lead.findAll({ where: { officeId: user.officeId } });
+      const studentIds = leads.map((lead) => lead.studentId);
+      conversationHashes = await Message.findAll({
+        where: {
+          [Op.or]: [
+            {
+              senderId: user.id,
+              recipientId: {
+                [Op.in]: [
+                  ...studentIds,
+                  ...(
+                    await User.findAll({
+                      where: {
+                        role: ['super_admin', 'consultant'],
+                        officeId: user.officeId,
+                      },
+                      attributes: ['id'],
+                    })
+                  ).map((u) => u.id),
+                ],
+              },
+            },
+            {
+              recipientId: user.id,
+              senderId: {
+                [Op.in]: [
+                  ...studentIds,
+                  ...(
+                    await User.findAll({
+                      where: {
+                        role: ['super_admin', 'consultant'],
+                        officeId: user.officeId,
+                      },
+                      attributes: ['id'],
+                    })
+                  ).map((u) => u.id),
+                ],
+              },
+            },
+          ],
+          deletedAt: null,
+        },
+        attributes: ['conversationHash'],
+        group: ['conversationHash'],
+        raw: true,
+      });
+      conversationHashes = conversationHashes.map(
+        (row) => row.conversationHash
+      );
+    } else if (user.role === 'consultant') {
+      const officeConsultants = await OfficeConsultant.findAll({
+        where: { userId: user.id },
+        attributes: ['officeId'],
+      });
+      const officeIds = officeConsultants.map((oc) => oc.officeId);
+      const assignedStudents = await Lead.findAll({
+        where: { assignedConsultant: user.id },
+        attributes: ['studentId'],
+      });
+      const studentIds = assignedStudents.map((lead) => lead.studentId);
+      const allowedUsers = await User.findAll({
+        where: {
+          [Op.or]: [
+            { role: ['super_admin', 'receptionist'] },
+            { role: 'manager', officeId: { [Op.in]: officeIds } },
+            { id: studentIds },
+          ],
+        },
+        attributes: ['id'],
+      });
+      conversationHashes = await Message.findAll({
+        where: {
+          [Op.or]: [
+            {
+              senderId: user.id,
+              recipientId: { [Op.in]: allowedUsers.map((u) => u.id) },
+            },
+            {
+              recipientId: user.id,
+              senderId: { [Op.in]: allowedUsers.map((u) => u.id) },
+            },
+          ],
+          deletedAt: null,
+        },
+        attributes: ['conversationHash'],
+        group: ['conversationHash'],
+        raw: true,
+      });
+      conversationHashes = conversationHashes.map(
+        (row) => row.conversationHash
+      );
+    } else {
+      conversationHashes = await Message.findAll({
+        where: {
+          [Op.or]: [{ senderId: user.id }, { recipientId: user.id }],
+          deletedAt: null,
+        },
+        attributes: ['conversationHash'],
+        group: ['conversationHash'],
+        raw: true,
+      });
+      conversationHashes = conversationHashes.map(
+        (row) => row.conversationHash
+      );
+    }
+
+    const unreadCounts = await Promise.all(
+      conversationHashes.map(async (conversationHash) => {
+        const count = await Message.count({
+          where: {
+            conversationHash,
+            recipientId: user.id,
+            readAt: null,
+            deletedAt: null,
+          },
+        });
+        return { conversationHash, unreadCount: count };
+      })
+    );
+
+    return res.status(200).json({
+      data: unreadCounts,
+    });
+  } catch (error) {
+    console.error('Error in getUnreadMessageCount:', error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const markConversationMessagesAsRead = async (req, res) => {
+  try {
+    const { user } = req;
+    const { conversationHash } = req.params;
+
+    // Verify permission to access the conversation
+    const hasPermission = await checkCommunicationPermission(
+      user,
+      conversationHash.split('_').find((id) => id !== user.id),
+      { User, Lead }
+    );
+    if (!hasPermission && user.role !== 'super_admin') {
+      return res.status(403).json({
+        message: 'Not authorized to mark messages as read in this conversation',
+      });
+    }
+
+    // Update all unread messages where the user is the recipient
+    const [updatedCount] = await Message.update(
+      { readAt: new Date() },
+      {
+        where: {
+          conversationHash,
+          recipientId: user.id,
+          readAt: null,
+          deletedAt: null,
+        },
+      }
+    );
+
+    // Emit socket event for each updated message to notify the sender
+    const updatedMessages = await Message.findAll({
+      where: {
+        conversationHash,
+        recipientId: user.id,
+        readAt: { [Op.ne]: null },
+        deletedAt: null,
+      },
+    });
+
+    const io = req.app.get('io');
+    updatedMessages.forEach((message) => {
+      io.to(message.senderId).emit('messageRead', {
+        messageId: message.id,
+        readAt: message.readAt,
+        recipientId: user.id,
+      });
+    });
+
+    return res
+      .status(200)
+      .json({ message: `${updatedCount} messages marked as read` });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 const getAllowedRecipients = async (req, res) => {
   try {
     const { user } = req;
@@ -842,4 +1330,6 @@ module.exports = {
   updateMessage,
   markMessageAsRead,
   getAllowedRecipients,
+  getUnreadMessageCount,
+  markConversationMessagesAsRead,
 };

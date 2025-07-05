@@ -219,7 +219,8 @@ const getManagerDashboard = async (officeId) => {
   // Validate office
   const office = await Office.findByPk(officeId);
   if (!office) {
-    throw new AppError('Office not found', 404);
+    // throw new AppError('Office not found', 404);
+    return res.status(400).send({ error: 'Ypu have not assign any office' })
   }
 
   // Get total leads

@@ -108,7 +108,11 @@ router.post(
 router.get('/', protect, messageController.getMessages);
 
 //
-router.get('/users/allowed-recipients', protect, messageController.getAllowedRecipients);
+router.get(
+  '/users/allowed-recipients',
+  protect,
+  messageController.getAllowedRecipients
+);
 
 /**
  * @swagger
@@ -150,6 +154,35 @@ router.put(
   protect,
   restrictTo('student', 'super_admin', 'manager'),
   messageController.updateMessage
+);
+
+/**
+ * @swagger
+ * /api/v1/messages/conversation/{conversationHash}/read:
+ *   put:
+ *     summary: Mark all messages in a conversation as read for the authenticated user
+ *     tags: [Messages]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: conversationHash
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The conversation hash to mark messages as read
+ *     responses:
+ *       200:
+ *         description: Messages marked as read
+ *       403:
+ *         description: Not authorized to mark messages as read
+ *       404:
+ *         description: Conversation not found
+ */
+router.put(
+  '/conversation/:conversationHash/read',
+  protect,
+  messageController.markConversationMessagesAsRead,
 );
 
 // /**
@@ -207,5 +240,7 @@ router.put(
  */
 router.put('/:id/read', protect, messageController.markMessageAsRead);
 
+// swagger doc
+router.get('/unread-count', protect, messageController.getUnreadMessageCount);
 
 module.exports = router;
