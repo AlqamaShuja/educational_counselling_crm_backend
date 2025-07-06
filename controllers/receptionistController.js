@@ -1,21 +1,57 @@
-const { Lead, User, Appointment } = require('../models');
+const { Lead, User, Appointment, StudentProfile } = require('../models');
 const emailService = require('../services/emailService');
 const leadService = require('../services/leadService');
 const notificationService = require('../services/notificationService');
 
 const registerWalkIn = async (req, res, next) => {
   try {
-    const { studentData, appointmentData } = req.body;
+    const {
+      studentData,
+      appointmentData,
+      studyPreferences,
+      source = 'walk_in',
+    } = req.body;
+
+    // Validate required fields
+    if (!studentData || !studyPreferences) {
+      return res.status(400).json({
+        error: 'Student data and study preferences are required',
+      });
+    }
+
+    // Check if email already exists
+    const existingUser = await User.findOne({
+      where: { email: studentData.email },
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        error: 'Email already exists. Please use a different email.',
+      });
+    }
+
+    // Create student user
     const student = await User.create({
       ...studentData,
       role: 'student',
       officeId: req.user.officeId,
+      isActive: true,
     });
+
+    // Create student profile
+    await StudentProfile.create({
+      userId: student.id,
+      personalInfo: studentData,
+      educationalBackground: {},
+      studyPreferences,
+    });
+
+    // Create lead
     const lead = await Lead.create({
       studentId: student.id,
       officeId: req.user.officeId,
-      source: 'walk_in',
-      studyPreferences: studentData.studyPreferences,
+      source,
+      studyPreferences,
       history: [
         {
           timestamp: new Date().toISOString(),
@@ -25,44 +61,69 @@ const registerWalkIn = async (req, res, next) => {
       ],
     });
 
-    //
-    if (!appointmentData.consultantId) {
-      const consultant = await User.findOne({
-        where: {
-          role: 'consultant',
-          officeId: req.user.officeId,
-          isActive: true,
-        },
+    let appointment = null;
+
+    // Create appointment if appointment data is provided
+    if (appointmentData && appointmentData.dateTime) {
+      // Find available consultant or use specified one
+      let consultantId = appointmentData.consultantId;
+
+      if (!consultantId) {
+        const consultant = await User.findOne({
+          where: {
+            role: 'consultant',
+            officeId: req.user.officeId,
+            isActive: true,
+          },
+        });
+
+        if (!consultant) {
+          return res.status(400).json({
+            error: 'No available consultant found',
+          });
+        }
+
+        consultantId = consultant.id;
+      }
+
+      appointment = await Appointment.create({
+        studentId: student.id,
+        consultantId,
+        officeId: req.user.officeId,
+        dateTime: appointmentData.dateTime,
+        type: appointmentData.type || 'in_person',
+        notes: appointmentData.notes || '',
       });
 
-      if (!consultant) throw new Error('No available consultant');
+      // Send notifications
+      await emailService.sendAppointmentConfirmation(
+        student.id,
+        appointment.id
+      );
 
-      appointmentData.consultantId = consultant.id;
+      await notificationService.sendNotification({
+        userId: consultantId,
+        type: 'in_app',
+        message: `A walk-in student has been assigned to you.`,
+        details: {
+          studentId: student.id,
+          leadId: lead.id,
+          appointmentId: appointment.id,
+          registeredBy: req.user.id,
+          dateTime: appointment.dateTime,
+        },
+      });
     }
 
-    const appointment = await Appointment.create({
-      studentId: student.id,
-      consultantId: appointmentData.consultantId,
-      officeId: req.user.officeId,
-      dateTime: appointmentData.dateTime,
-      type: 'in_person',
-    });
-    await emailService.sendAppointmentConfirmation(student.id, appointment.id);
-
-    await notificationService.sendNotification({
-      userId: appointment.consultantId,
-      type: 'in_app',
-      message: `A walk-in student has been assigned to you.`,
-      details: {
-        studentId: student.id,
-        leadId: lead.id,
-        appointmentId: appointment.id,
-        registeredBy: req.user.id,
-        dateTime: appointment.dateTime,
+    res.status(201).json({
+      success: true,
+      data: {
+        student,
+        lead,
+        appointment,
       },
+      message: 'Walk-in student registered successfully',
     });
-
-    res.status(201).json({ student, lead, appointment });
   } catch (error) {
     next(error);
   }
