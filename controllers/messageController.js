@@ -111,7 +111,7 @@ const checkCommunicationPermission = async (
       if (recipient.role === 'consultant') {
         const fetchRecipientOffice = await OfficeConsultant.findOne({
           where: { userId: recipientId, officeId: user.officeId },
-        })
+        });
 
         return !!fetchRecipientOffice;
       }
@@ -486,7 +486,7 @@ const getMessages = async (req, res) => {
       });
 
       const baseUrl = process.env.BASE_URL || 'http://localhost:5009';
-      const messagesWithAbsoluteUrls = messages.rows
+      const messagesWithAbsoluteUrls = messages.rows;
       // .map((msg) => ({
       //   ...msg.toJSON(),
       //   fileUrl:
@@ -1260,16 +1260,35 @@ const getAllowedRecipients = async (req, res) => {
         where: { officeId: office.id },
         attributes: ['userId'],
       });
-      recipients = await User.findAll({
+      let recipients1 = await User.findAll({
         where: {
           [Op.or]: [
-            { role: ['super_admin', 'student'] },
+            { role: 'super_admin', },
             { id: consultantIds.map((oc) => oc.userId) },
           ],
           isActive: true,
         },
         attributes: ['id', 'name', 'role'],
       });
+      let leads = await Lead.findAll({
+        where: {
+          officeId: office.id,
+        },
+        attributes: ['studentId'],
+      });
+      const stdIds = leads.map(lead => lead.studentId);
+      let recipients2 = await User.findAll({
+        where: {
+          id: stdIds,
+        },
+        attributes: ['id', 'name', 'role'],
+      });
+      // Merge recipients1 and recipients2, removing duplicates by id
+      const allRecipients = [...recipients1, ...recipients2];
+      const uniqueIds = new Set(allRecipients.map((user) => user.id));
+      recipients = Array.from(uniqueIds).map((id) =>
+        allRecipients.find((user) => user.id === id)
+      );
     } else if (user.role === 'consultant') {
       const officeConsultants = await OfficeConsultant.findAll({
         where: { userId: user.id },
