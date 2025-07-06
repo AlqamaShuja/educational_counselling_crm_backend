@@ -486,13 +486,14 @@ const getMessages = async (req, res) => {
       });
 
       const baseUrl = process.env.BASE_URL || 'http://localhost:5009';
-      const messagesWithAbsoluteUrls = messages.rows.map((msg) => ({
-        ...msg.toJSON(),
-        fileUrl:
-          msg.fileUrl && !msg.fileUrl.startsWith('http')
-            ? `${baseUrl}${msg.fileUrl}`
-            : msg.fileUrl,
-      }));
+      const messagesWithAbsoluteUrls = messages.rows
+      // .map((msg) => ({
+      //   ...msg.toJSON(),
+      //   fileUrl:
+      //     msg.fileUrl && !msg.fileUrl.startsWith('http')
+      //       ? `${baseUrl}${msg.fileUrl}`
+      //       : msg.fileUrl,
+      // }));
 
       return res.status(200).json({
         data: messagesWithAbsoluteUrls,
