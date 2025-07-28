@@ -9,7 +9,7 @@ const errorMiddleware = require('./middleware/errorMiddleware');
 const passport = require('passport');
 const http = require('http');
 const { Server } = require('socket.io');
-const path = require("path");
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -23,7 +23,10 @@ const io = new Server(server, {
 app.use(express.json());
 app.use(cors({ origin: '*' }));
 
-app.use('/uploads/leads', express.static(path.join(__dirname, 'uploads/leads')));
+app.use(
+  '/uploads/leads',
+  express.static(path.join(__dirname, 'uploads/leads'))
+);
 
 app.use(passport.initialize());
 
@@ -45,11 +48,17 @@ io.on('connection', (socket) => {
 // Make io accessible to routes/controllers
 app.set('io', io);
 
+// sequelize
+//   .authenticate()
+//   .then(() => console.log('Database connected!'))
+//   .catch((err) => console.error('DB connection error:', err));
+
 sequelize
   .authenticate()
   .then(() => console.log('Database connected!'))
+  // .then(() => sequelize.sync({ alter: true })) // Add this line
+  // .then(() => console.log('Database synced!'))
   .catch((err) => console.error('DB connection error:', err));
-
 // Routes
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 allRoutes(app);
