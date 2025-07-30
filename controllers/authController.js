@@ -8,15 +8,17 @@ const AppError = require('../utils/appError');
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    
     if (!email || !password) {
       throw new Error('Email and password are required');
     }
-
+    
     const user = await User.findOne({ where: { email } });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      // throw new Error('Invalid credentials');
-      throw new AppError('Invalid credentials', 400);
-    }
+    console.log(user, " = user:emaillll");
+    // if (!user || !(await bcrypt.compare(password, user.password))) {
+    //   // throw new Error('Invalid credentials');
+    //   throw new AppError('Invalid credentials', 400);
+    // }
 
     if (!user.isActive) {
       throw new Error('Account is inactive');

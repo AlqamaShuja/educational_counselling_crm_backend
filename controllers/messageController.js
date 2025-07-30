@@ -1333,13 +1333,42 @@ const getAllowedRecipients = async (req, res) => {
         attributes: ['id', 'name', 'role'],
       });
     } else if (user.role === 'student') {
-      recipients = await User.findAll({
-        where: {
-          role: ['consultant', 'manager'],
-          isActive: true,
-        },
-        attributes: ['id', 'name', 'role'],
+      // Find the student's lead to get assigned consultant and office
+      const lead = await Lead.findOne({
+        where: { studentId: user.id },
+        attributes: ['assignedConsultant', 'officeId'],
       });
+
+      if (lead) {
+        const recipientIds = [];
+        
+        // Add assigned consultant if exists
+        if (lead.assignedConsultant) {
+          recipientIds.push(lead.assignedConsultant);
+        }
+        
+        // Add manager of the assigned office if exists
+        if (lead.officeId) {
+          const office = await Office.findOne({
+            where: { id: lead.officeId },
+            attributes: ['managerId'],
+          });
+          if (office && office.managerId) {
+            recipientIds.push(office.managerId);
+          }
+        }
+
+        // Fetch the specific recipients
+        if (recipientIds.length > 0) {
+          recipients = await User.findAll({
+            where: {
+              id: recipientIds,
+              isActive: true,
+            },
+            attributes: ['id', 'name', 'role'],
+          });
+        }
+      }
     }
 
     return res.status(200).json({ data: recipients });

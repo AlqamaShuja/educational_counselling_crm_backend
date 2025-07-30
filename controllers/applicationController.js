@@ -4,6 +4,7 @@ const {
   Document,
   Lead,
   User,
+  sequelize,
 } = require('../models');
 const notificationService = require('../services/notificationService');
 const AppError = require('../utils/appError');
@@ -88,6 +89,7 @@ const checkEligibility = async (req, res, next) => {
 const createApplication = async (req, res, next) => {
   try {
     const studentId = req.user.id;
+    const { notes, initialStage, universitySelections, visaInfo } = req.body;
 
     // Check if student already has an active application
     const existingApplication = await Application.findOne({
@@ -108,11 +110,44 @@ const createApplication = async (req, res, next) => {
     const lead = await Lead.findOne({ where: { studentId } });
     const consultantId = lead?.assignedConsultant || null;
 
+    // Validate initial stage if provided
+    const validStages = ['profile_review', 'university_selection', 'document_preparation'];
+    const stage = initialStage && validStages.includes(initialStage) ? initialStage : 'profile_review';
+
+    // Validate universitySelections if provided
+    let validatedUniversitySelections = [];
+    if (universitySelections && Array.isArray(universitySelections)) {
+      validatedUniversitySelections = universitySelections.map(selection => ({
+        universityId: selection.universityId || null,
+        programId: selection.programId || null,
+        universityName: selection.universityName || '',
+        programName: selection.programName || '',
+        country: selection.country || '',
+        applicationDeadline: selection.applicationDeadline || null,
+        requirements: selection.requirements || [],
+        notes: selection.notes || ''
+      }));
+    }
+
+    // Default visaInfo structure
+    const defaultVisaInfo = {
+      visaType: '',
+      country: '',
+      applicationDate: null,
+      interviewDate: null,
+      documentsRequired: [],
+      status: 'not_started',
+      notes: ''
+    };
+
     const application = await Application.create({
       studentId,
       consultantId,
       status: 'draft',
-      stage: 'profile_review'
+      stage,
+      notes: notes || null,
+      universitySelections: validatedUniversitySelections,
+      visaInfo: visaInfo || defaultVisaInfo
     });
 
     await notificationService.sendNotification({
@@ -366,7 +401,14 @@ const reviewApplication = async (req, res, next) => {
     const consultantId = req.user.id;
 
     const application = await Application.findOne({
-      where: { id, consultantId }
+      where: { id, consultantId },
+      include: [
+        {
+          model: User,
+          as: 'student',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
     });
 
     if (!application) {
@@ -386,9 +428,20 @@ const reviewApplication = async (req, res, next) => {
       details: { applicationId: application.id }
     });
 
+    // Fetch the updated application with student data
+    const updatedApplication = await Application.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: 'student',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
     res.json({
       message: 'Application reviewed successfully',
-      application
+      application: updatedApplication
     });
   } catch (error) {
     next(error);
@@ -402,7 +455,14 @@ const updateApplicationStatus = async (req, res, next) => {
     const consultantId = req.user.id;
 
     const application = await Application.findOne({
-      where: { id, consultantId }
+      where: { id, consultantId },
+      include: [
+        {
+          model: User,
+          as: 'student',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
     });
 
     if (!application) {
@@ -422,9 +482,20 @@ const updateApplicationStatus = async (req, res, next) => {
       details: { applicationId: application.id }
     });
 
+    // Fetch the updated application with student data
+    const updatedApplication = await Application.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: 'student',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
     res.json({
       message: 'Application status updated successfully',
-      application
+      application: updatedApplication
     });
   } catch (error) {
     next(error);

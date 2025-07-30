@@ -52,6 +52,83 @@ router.get('/student/eligibility', protect, restrictTo('student'), applicationCo
  *     description: Creates a new application for the authenticated student
  *     security:
  *       - BearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               notes:
+ *                 type: string
+ *                 description: Optional notes for the application
+ *               initialStage:
+ *                 type: string
+ *                 enum: [profile_review, university_selection, document_preparation]
+ *                 description: Optional initial stage for the application (defaults to profile_review)
+ *               universitySelections:
+ *                 type: array
+ *                 description: Optional initial university selections
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     universityId:
+ *                       type: number
+ *                       description: University ID (can be any number)
+ *                     programId:
+ *                       type: number
+ *                       description: Program ID (can be any number)
+ *                     universityName:
+ *                       type: string
+ *                       description: University name
+ *                     programName:
+ *                       type: string
+ *                       description: Program name
+ *                     country:
+ *                       type: string
+ *                       description: Country
+ *                     applicationDeadline:
+ *                       type: string
+ *                       format: date
+ *                       description: Application deadline
+ *                     requirements:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       description: List of requirements
+ *                     notes:
+ *                       type: string
+ *                       description: Notes for this university selection
+ *               visaInfo:
+ *                 type: object
+ *                 description: Optional visa information
+ *                 properties:
+ *                   visaType:
+ *                     type: string
+ *                     description: Type of visa
+ *                   country:
+ *                     type: string
+ *                     description: Country for visa
+ *                   applicationDate:
+ *                     type: string
+ *                     format: date
+ *                     description: Visa application date
+ *                   interviewDate:
+ *                     type: string
+ *                     format: date
+ *                     description: Visa interview date
+ *                   documentsRequired:
+ *                     type: array
+ *                     items:
+ *                       type: string
+ *                     description: Required documents for visa
+ *                   status:
+ *                     type: string
+ *                     enum: [not_started, in_progress, submitted, approved, rejected]
+ *                     description: Visa application status
+ *                   notes:
+ *                     type: string
+ *                     description: Notes for visa application
  *     responses:
  *       201:
  *         description: Application created successfully
