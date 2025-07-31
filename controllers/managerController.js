@@ -12,6 +12,13 @@ const leadService = require('../services/leadService');
 const { sendNotification } = require('../services/notificationService');
 const { Op } = require('sequelize');
 
+// Utility function to add hours to a date
+const addHours = (date, hours) => {
+  const newDate = new Date(date);
+  newDate.setHours(newDate.getHours() + hours);
+  return newDate;
+};
+
 const createLead = async (req, res, next) => {
   try {
     const {
